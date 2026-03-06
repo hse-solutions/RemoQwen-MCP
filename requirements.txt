@@ -8,3 +8,5 @@ uvicorn==0.32.1
 requests==2.32.3
 # For the beautiful human-readable terminal UI
 rich==13.9.4
+# For handling .env files (Universal Path Support)
+python-dotenv==1.0.1

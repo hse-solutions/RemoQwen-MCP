@@ -1,0 +1,13 @@
+# Python environment
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local configuration
+.env
+.vscode/
+
+# Project specific logs
+*.log

@@ -11,7 +11,7 @@ console = Console()
 class Dashboard:
     """
     Advanced Interactive Terminal UI for the Remotion Bridge.
-    Includes Permission Handling (Human-in-the-Loop).
+    Includes Permission Handling and Connection Visibility.
     """
     
     @staticmethod
@@ -27,11 +27,25 @@ class Dashboard:
         )
 
     @staticmethod
+    def connection_info(url: str):
+        """Displays the SSE Connection URL clearly for the user to copy."""
+        info_text = Text.assemble(
+            ("Connect Qwen Desktop using this SSE URL:\n", "white"),
+            (f"{url}", "bold green underline")
+        )
+        console.print(
+            Panel(
+                info_text, 
+                title="[bold green]CONNECTION READY[/bold green]", 
+                border_style="green",
+                expand=False
+            )
+        )
+
+    @staticmethod
     def log(category, message, style="white"):
         """Logs stylized messages to the terminal."""
         time_str = datetime.now().strftime("%H:%M:%S")
-        
-        # Extended category styles
         cat_styles = {
             "CONTEXT": "bold yellow", 
             "ACTION": "bold cyan", 
@@ -41,7 +55,6 @@ class Dashboard:
             "SERVER": "bold blue",
             "PERMISSION": "bold orange3"
         }
-        
         text = Text()
         text.append(f"[{time_str}] ", style="dim")
         text.append(f"[{category}] ", style=cat_styles.get(category, "white"))
@@ -50,31 +63,18 @@ class Dashboard:
 
     @staticmethod
     def ask_permission(tool_name: str, target: str) -> bool:
-        """
-        Interactively asks the user for permission to execute a tool.
-        Stops AI execution until the user responds.
-        """
-        # Stand out with a focused Panel for the request
+        """Interactively asks the user for permission (Human-in-the-Loop)."""
         request_text = Text.assemble(
             ("AI is requesting permission to use ", "white"),
             (f"'{tool_name}'", "bold yellow"),
             ("\non target: ", "white"),
             (f"{target}", "bold cyan")
         )
-        
-        console.print("\n") # Space for visibility
+        console.print("\n")
         console.print(Panel(request_text, title="[bold orange3]USER PERMISSION REQUIRED[/bold orange3]", border_style="orange3"))
-        
-        # Use Rich's built-in Confirm prompt (Returns True for 'y', False for 'n')
-        # default=False ensures 'n' is selected if the user just hits Enter (Safety First)
-        response = Confirm.ask(
-            f"[bold white]Allow this action?[/bold white]", 
-            default=False
-        )
-        
+        response = Confirm.ask(f"[bold white]Allow this action?[/bold white]", default=False)
         if response:
             Dashboard.log("SUCCESS", f"Permission granted for {tool_name}.")
         else:
             Dashboard.log("ERROR", f"Permission denied for {tool_name}.")
-            
         return response

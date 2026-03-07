@@ -1,22 +1,33 @@
 import os
 from dotenv import load_dotenv
 
-# Load local environment variables from a .env file (if it exists)
+# Load local environment variables from a .env file
 load_dotenv()
+
+# =============================================================================
+# OPERATION MODES DEFINITION
+# =============================================================================
+# Mode 1: No permissions asked. Total freedom.
+MODE_FULLY_AUTO = "Fully Autonomous (Speedster)"
+# Mode 2: Only ask for Downloads & Commands. File edits are automatic.
+MODE_BALANCED = "Guarded Network (Professional)"
+# Mode 3: Ask for everything (Reads, Writes, Downloads, Cleanup).
+MODE_STRICT = "Strict Manual (Architect)"
+
+# This will hold the user's choice at runtime
+SELECTED_MODE = MODE_BALANCED 
 
 # =============================================================================
 # UNIVERSAL CONFIGURATION & SECURITY PATH LOCKING
 # =============================================================================
 
-# Dynamic Project Root: 
-# 1. Tries to get the path from .env (REMOTION_PROJECT_PATH)
-# 2. Falls back to a relative path (../my-video) if .env is missing
+# Dynamic Project Root logic remains unchanged for reliability
 PROJECT_ROOT = os.path.normpath(
     os.getenv("REMOTION_PROJECT_PATH", 
     os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "my-video")))
 )
 
-# Core project sub-directories based on the dynamic PROJECT_ROOT
+# Core project sub-directories
 SRC_DIR = os.path.join(PROJECT_ROOT, "src")
 PUBLIC_DIR = os.path.join(PROJECT_ROOT, "public")
 SKILLS_DIR = os.path.join(PROJECT_ROOT, ".qwen", "skills", "remotion-best-practices")
@@ -24,8 +35,8 @@ MEMORY_FILE = os.path.join(PROJECT_ROOT, "memory.md")
 
 def validate_path(relative_path: str) -> str:
     """
-    Security Jail: Ensures the AI strictly stays inside the PROJECT_ROOT.
-    Normalizes paths to prevent Directory Traversal attacks.
+    Security Jail: Strictly ensures the AI stays inside the PROJECT_ROOT.
+    Prevents directory traversal attacks.
     """
     try:
         absolute_path = os.path.abspath(os.path.join(PROJECT_ROOT, relative_path))
@@ -35,8 +46,5 @@ def validate_path(relative_path: str) -> str:
     except Exception:
         raise PermissionError(f"Security Violation: Path validation failed.")
 
-# Feedback for the Terminal Dashboard
-if not os.path.exists(PROJECT_ROOT):
-    print(f"[*] WARNING: Target project NOT FOUND at: {PROJECT_ROOT}")
-else:
-    print(f"[*] Security jail locked to: {PROJECT_ROOT}")
+# Check if project exists (Visual feedback is now handled by the Dashboard)
+PROJECT_EXISTS = os.path.exists(PROJECT_ROOT)

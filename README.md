@@ -35,7 +35,7 @@ Now, clone this bridge and set up the Python environment.
 
 1. Clone and install dependencies:
    ```bash
-   git clone https://github.com/IsaraAnu/RemoQwen-MCP.git
+   git clone https://github.com/hse-solutions/RemoQwen-MCP.git
    cd RemoQwen-MCP
    python -m venv venv
    source venv/bin/activate  # Windows: venv\Scripts\activate

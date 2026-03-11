@@ -12,17 +12,17 @@ console = Console()
 
 class Dashboard:
     """
-    Advanced Operational Dashboard for RemoQwen-MCP.
-    Features: Mode Selection, Icon-based logging, and Permission Gates.
+    Advanced Operational Dashboard for RemoQwen-MCP v5.0.
+    Features: Mode Selection, Self-Healing Monitoring, and Interactive Gates.
     """
     
     @staticmethod
     def header():
-        """Displays the main branding and version info."""
+        """Displays the main branding and version info for the Self-Healing Edition."""
         console.clear()
         banner = Text.assemble(
-            ("REMOQWEN-MCP v4.0\n", "bold cyan"),
-            ("Autonomous AI Video Engineer for Remotion\n", "italic white"),
+            ("REMOQWEN-MCP v5.0\n", "bold cyan"),
+            ("Autonomous AI Video Engineer (Self-Healing Mode)\n", "italic white"),
             ("───────────────────────────────────────────", "bright_blue")
         )
         console.print(Panel.fit(banner, border_style="bright_blue", padding=(1, 2)))
@@ -59,17 +59,19 @@ class Dashboard:
     @staticmethod
     def log(category: str, message: str, style: str = "white"):
         """
-        Icon-based professional logging system.
-        Categories automatically map to icons for high visibility.
+        Icon-based professional logging system for v5.0.
+        Includes support for Shell Execution and Headless Debugging logs.
         """
         time_str = datetime.now().strftime("%H:%M:%S")
         
-        # Icon mapping for each operation type
+        # Icon mapping enhanced for v5.0 Self-Healing features
         icons = {
             "READ": "📖 [READ]   ",
             "WRITE": "✍️ [WRITE]  ",
             "FETCH": "📥 [FETCH]  ",
             "CLEAN": "🗑️ [CLEAN]  ",
+            "EXEC":  "⚡ [EXEC]   ", # Shell commands (npm run dev, etc.)
+            "DEBUG": "🔍 [DEBUG]  ", # Headless validation
             "CONTEXT": "🧠 [CONTEXT]",
             "SUCCESS": "✅ [SUCCESS]",
             "ERROR": "❌ [ERROR]  ",
@@ -80,12 +82,14 @@ class Dashboard:
         
         icon = icons.get(category, f"[{category}]")
         
-        # Color coding for categories
+        # Color coding configuration
         cat_styles = {
             "READ": "cyan",
             "WRITE": "bold cyan",
             "FETCH": "bold green",
             "CLEAN": "bold red",
+            "EXEC": "bold yellow",
+            "DEBUG": "bold blue",
             "CONTEXT": "bold yellow",
             "SUCCESS": "bold green",
             "ERROR": "bold red",
@@ -104,7 +108,7 @@ class Dashboard:
 
     @staticmethod
     def ask_permission(tool_name: str, target: str) -> bool:
-        """Human-in-the-Loop Permission Prompt."""
+        """Human-in-the-Loop Permission Prompt for guarded actions."""
         request_text = Text.assemble(
             ("AI wants to use ", "white"),
             (f"'{tool_name}'", "bold yellow"),

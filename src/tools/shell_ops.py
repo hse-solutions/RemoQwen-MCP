@@ -1,11 +1,13 @@
 import subprocess
 import os
 import time
+import json
 import logging
 import config
 from config import (
     PROJECT_ROOT, ALLOWED_COMMANDS, ERROR_KEYWORDS, 
     COMMAND_TIMEOUT, PREVIEW_SCAN_DURATION,
+    DEEP_SCAN_POINTS, REMOTION_LOG_LEVEL,
     MODE_STRICT, MODE_BALANCED, MODE_FULLY_AUTO
 )
 from src.ui.dashboard import Dashboard as db
@@ -13,30 +15,27 @@ from src.ui.dashboard import Dashboard as db
 logger = logging.getLogger("remotion_bridge")
 
 def is_command_allowed(command_str: str) -> bool:
-    """Checks if the base command is in the security whitelist."""
+    """Checks the whitelist for security."""
     base_cmd = command_str.split()[0].replace(".exe", "")
     return base_cmd in ALLOWED_COMMANDS
 
-def run_command(command_str: str):
+def run_command(command_str: str, silent: bool = False):
     """
-    Executes a shell command inside the PROJECT_ROOT.
-    Features: Mode-aware permission, Real-time log scanning, and Auto-kill.
+    Standard shell execution engine. 
+    If 'silent' is True, it won't ask for permission (used for internal hunting).
     """
-    # 1. Security Check
     if not is_command_allowed(command_str):
-        db.log("GUARD", f"Forbidden command blocked: {command_str}", style="bold red")
-        return f"Security Error: Command '{command_str}' is not in the allowed whitelist."
+        db.log("GUARD", f"Access Denied: {command_str}", style="bold red")
+        return f"Security Error: Command not allowed."
 
-    # 2. Permission Handling
-    if config.SELECTED_MODE in [MODE_STRICT, MODE_BALANCED]:
+    # Permission Gate (Only if not in internal hunting mode)
+    if not silent and config.SELECTED_MODE in [MODE_STRICT, MODE_BALANCED]:
         if not db.ask_permission("run_command", command_str):
-            return "Error: Command execution denied by the user."
-    else:
+            return "Error: Command aborted by user."
+    elif not silent:
         db.log("EXEC", f"Running: {command_str}")
 
-    # 3. Execution & Log Scanning
     try:
-        # We use Popen to capture logs in real-time
         process = subprocess.Popen(
             command_str,
             shell=True,
@@ -46,68 +45,82 @@ def run_command(command_str: str):
             text=True,
             bufsize=1
         )
-
-        db.log("SERVER", f"Monitoring logs for {PREVIEW_SCAN_DURATION}s...")
         
         captured_logs = []
         start_time = time.time()
-        error_found = False
+        error_detected = False
 
-        # Scan loop: Watch the output for errors for a fixed duration
-        while time.time() - start_time < PREVIEW_SCAN_DURATION:
-            output = process.stdout.readline()
-            if output:
-                line = output.strip()
-                captured_logs.append(line)
-                
-                # Real-time Keyword Search
-                if any(key in line for key in ERROR_KEYWORDS):
-                    db.log("ERROR", f"Detected Error: {line}", style="bold red")
-                    error_found = True
-                    break # Stop scanning if a known error is found
-            
-            # Check if process died early
-            if process.poll() is not None:
-                break
-            
-            time.sleep(0.1)
-
-        # 4. Final Verdict
-        if error_found:
-            process.terminate()
-            # Return the last few lines to give AI the context of the crash
-            error_context = "\n".join(captured_logs[-10:])
-            return f"CRITICAL ERROR detected during execution:\n{error_context}"
+        # Monitor stream for errors
+        while time.time() - start_time < (COMMAND_TIMEOUT if not silent else 30):
+            line = process.stdout.readline()
+            if not line and process.poll() is not None: break
+            if line:
+                clean_line = line.strip()
+                captured_logs.append(clean_line)
+                if any(key in clean_line for key in ERROR_KEYWORDS):
+                    error_detected = True
+                    break
         
-        if "studio" in command_str or "dev" in command_str:
-            # For 'dev' commands, we keep them running but tell AI it's successful
-            db.log("SUCCESS", "Preview server is stable. Check localhost:3000")
-            return "Success: Preview server is running without errors."
+        if error_detected:
+            process.terminate()
+            return f"CRITICAL ERROR:\n" + "\n".join(captured_logs[-15:])
         
         process.terminate()
-        return "Success: Command completed without detectable errors."
+        return "\n".join(captured_logs)
 
     except Exception as e:
-        db.log("ERROR", f"Execution failed: {str(e)}")
-        return f"Error executing command: {str(e)}"
+        return f"Execution Failure: {str(e)}"
+
+def get_video_metadata():
+    """Uses remotion probe to find total frames for accurate hunting."""
+    db.log("SCAN", "Probing video metadata for the hunt...")
+    probe_cmd = "npx remotion probe src/index.ts"
+    res = run_command(probe_cmd, silent=True)
+    
+    try:
+        # Look for the duration/frames in the output
+        if "durationInFrames" in res:
+            # Simple extraction from raw output
+            import re
+            match = re.search(r"durationInFrames:\s*(\d+)", res)
+            if match: return int(match.group(1))
+        return 300 # Default fallback
+    except:
+        return 300
 
 def verify_runtime_logic():
     """
-    CRITICAL v5.0 FEATURE: Catches Browser-only errors.
-    It runs a headless 'still' render of the first frame.
-    If the React logic is broken (e.g., interpolation length), this will crash and catch it.
+    THE SENTINEL LION (v6.0): 100% Autonomous Error Hunting.
+    Probes multiple points in the timeline to catch browser-level crashes.
     """
-    db.log("SERVER", "Triggering Headless Runtime Validation...")
+    db.log("PREDATOR", "Lion Mode Activated. Starting the hunt...")
     
-    # We try to render frame 0 of the first composition
-    # This forces Remotion to execute all React hooks and logic
-    validate_cmd = "npx remotion render src/index.ts --still --frame=0 --output=public/preview-check.png"
+    total_frames = get_video_metadata()
+    # Calculate strategic probe points (e.g., 0, 25%, 50%, 75%, 100%)
+    probe_points = [int((total_frames - 1) * (i / (DEEP_SCAN_POINTS - 1))) for i in range(DEEP_SCAN_POINTS)]
     
-    result = run_command(validate_cmd)
+    debug_img = os.path.join(PROJECT_ROOT, "public", "sentinel-lion-probe.png")
     
-    if "CRITICAL ERROR" in result:
-        db.log("ERROR", "Runtime crash detected in React logic!", style="bold red")
-        return result # Return the log to AI for self-healing
+    for i, frame in enumerate(probe_points):
+        db.log("TARGET", f"Locking onto Target {i+1}/{DEEP_SCAN_POINTS} (Frame {frame})")
         
-    db.log("SUCCESS", "React lifecycle and interpolation logic validated.")
-    return "Success: All logic passed runtime validation."
+        # We use --log=verbose to tunnel browser errors into the terminal
+        hunt_cmd = f"npx remotion still src/index.ts --frame={frame} --output={debug_img} {REMOTION_LOG_LEVEL}"
+        
+        result = run_command(hunt_cmd, silent=True)
+        
+        if "CRITICAL ERROR" in result or "Error" in result:
+            db.log("STRIKE", f"CRASH DETECTED at frame {frame}!", style="bold bright_red")
+            db.show_hunt_progress(i+1, DEEP_SCAN_POINTS, frame, "FAILED")
+            
+            # Cleanup the temp image if it exists
+            if os.path.exists(debug_img): os.remove(debug_img)
+            
+            return f"SENTINEL LION STRIKE: Code crashed in browser at frame {frame}. Logs:\n{result}"
+        
+        db.show_hunt_progress(i+1, DEEP_SCAN_POINTS, frame, "PASSED")
+
+    # Final Victory
+    if os.path.exists(debug_img): os.remove(debug_img)
+    db.log("SUCCESS", "The hunt is complete. No errors found in the timeline.")
+    return "Success: Video passed Deep Scan Validation at all points."

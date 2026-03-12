@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # =============================================================================
-# OPERATION MODES DEFINITION (Preserved from v4.0)
+# OPERATION MODES DEFINITION (Preserved)
 # =============================================================================
 MODE_FULLY_AUTO = "Fully Autonomous (Speedster)"
 MODE_BALANCED = "Guarded Network (Professional)"
@@ -15,17 +15,30 @@ MODE_STRICT = "Strict Manual (Architect)"
 SELECTED_MODE = MODE_BALANCED 
 
 # =============================================================================
-# SHELL & COMMAND SECURITY CONFIGURATION (New for v5.0)
+# SHELL & COMMAND SECURITY CONFIGURATION
 # =============================================================================
-# Strictly allow only these commands to prevent system-level damage
+# Strictly allow only these base commands for security
 ALLOWED_COMMANDS = ["npm", "npx", "node", "remotion"]
 
-# Timeouts to prevent the bridge from hanging on stuck processes
-COMMAND_TIMEOUT = 60  # seconds
-PREVIEW_SCAN_DURATION = 15  # seconds to monitor logs for errors
+# Timeouts and Scan Durations
+COMMAND_TIMEOUT = 120  # Increased for deep rendering tasks
+PREVIEW_SCAN_DURATION = 15  # Monitoring window for dev server logs
 
-# Keywords that trigger the autonomous self-healing loop
-ERROR_KEYWORDS = ["ERROR", "Failed to compile", "SyntaxError", "Module not found", "mismatch"]
+# =============================================================================
+# SENTINEL LION: ERROR HUNTING SETTINGS (New for v6.0)
+# =============================================================================
+# Number of strategic points in the timeline to probe (e.g., Start, 25%, 50%, 75%, End)
+DEEP_SCAN_POINTS = 5
+
+# Remotion verbosity flag to force browser errors into the terminal
+REMOTION_LOG_LEVEL = "--log=verbose"
+
+# Enhanced error keywords to catch React/Remotion internal crashes
+ERROR_KEYWORDS = [
+    "ERROR", "Failed to compile", "SyntaxError", "Module not found", 
+    "mismatch", "TypeError", "ReferenceError", "Invariant Violation",
+    "must have the same length"
+]
 
 # =============================================================================
 # UNIVERSAL CONFIGURATION & SECURITY PATH LOCKING
@@ -43,7 +56,7 @@ MEMORY_FILE = os.path.join(PROJECT_ROOT, "memory.md")
 def validate_path(relative_path: str) -> str:
     """
     Security Jail: Strictly ensures the AI stays inside the PROJECT_ROOT.
-    Logic preserved to guarantee 100% security during file operations.
+    Logic preserved to guarantee 100% security during autonomous file operations.
     """
     try:
         absolute_path = os.path.abspath(os.path.join(PROJECT_ROOT, relative_path))
@@ -53,5 +66,5 @@ def validate_path(relative_path: str) -> str:
     except Exception:
         raise PermissionError(f"Security Violation: Path validation failed.")
 
-# Global check for environment readiness
+# Check if environment is ready
 PROJECT_EXISTS = os.path.exists(PROJECT_ROOT)

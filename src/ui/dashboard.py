@@ -7,30 +7,30 @@ from rich.prompt import Confirm
 from datetime import datetime
 from config import MODE_FULLY_AUTO, MODE_BALANCED, MODE_STRICT
 
-# Initialize Rich Console for professional UI rendering
+# Initialize Rich Console
 console = Console()
 
 class Dashboard:
     """
-    Advanced Operational Dashboard for RemoQwen-MCP v5.0.
-    Features: Mode Selection, Self-Healing Monitoring, and Interactive Gates.
+    Advanced Operational Dashboard for RemoQwen-MCP v6.0.
+    SENTINEL LION EDITION: Featuring Autonomous Error Hunting & Deep Scanning.
     """
     
     @staticmethod
     def header():
-        """Displays the main branding and version info for the Self-Healing Edition."""
+        """Displays the cinematic v6.0 branding banner."""
         console.clear()
         banner = Text.assemble(
-            ("REMOQWEN-MCP v5.0\n", "bold cyan"),
-            ("Autonomous AI Video Engineer (Self-Healing Mode)\n", "italic white"),
-            ("───────────────────────────────────────────", "bright_blue")
+            ("REMOQWEN-MCP v6.0\n", "bold yellow"),
+            ("SENTINEL LION: Autonomous Error Hunting Edition\n", "italic white"),
+            ("────────────────────────────────────────────────", "bright_red")
         )
-        console.print(Panel.fit(banner, border_style="bright_blue", padding=(1, 2)))
+        console.print(Panel.fit(banner, border_style="bright_red", padding=(1, 2)))
 
     @staticmethod
     def select_mode() -> str:
         """Interactive Arrow-Key Menu to select the bridge operation mode."""
-        console.print("\n[bold white]Select Operation Mode:[/bold white]")
+        console.print("\n[bold white]Select Operational Intensity:[/bold white]")
         choice = questionary.select(
             "",
             choices=[
@@ -39,8 +39,8 @@ class Dashboard:
                 questionary.Choice(title=f"🛡️  {MODE_STRICT}", value=MODE_STRICT),
             ],
             style=questionary.Style([
-                ('pointer', 'fg:cyan bold'),
-                ('highlighted', 'fg:cyan bold'),
+                ('pointer', 'fg:yellow bold'),
+                ('highlighted', 'fg:yellow bold'),
                 ('selected', 'fg:green'),
             ])
         ).ask()
@@ -50,52 +50,48 @@ class Dashboard:
     def status_board(mode: str, url: str):
         """Displays the active configuration and connection info."""
         status_text = Text.assemble(
-            ("STATUS: ", "white"), ("ONLINE\n", "bold green"),
-            ("MODE:   ", "white"), (f"{mode}\n", "bold yellow"),
-            ("SSE URL: ", "white"), (f"{url}", "bold green underline")
+            ("HUNTING MODE: ", "white"), (f"{mode}\n", "bold yellow"),
+            ("SENTINEL:     ", "white"), ("ACTIVE ✅\n", "bold green"),
+            ("SSE URL:      ", "white"), (f"{url}", "bold green underline")
         )
-        console.print(Panel(status_text, title="[bold white]CONTROL CENTER[/bold white]", border_style="green", expand=False))
+        console.print(Panel(status_text, title="[bold red]SENTINEL LION RADAR[/bold red]", border_style="red", expand=False))
 
     @staticmethod
     def log(category: str, message: str, style: str = "white"):
         """
-        Icon-based professional logging system for v5.0.
-        Includes support for Shell Execution and Headless Debugging logs.
+        Lion-themed professional logging system for v6.0.
+        Visualizes the hunt, the targets, and the strikes on errors.
         """
         time_str = datetime.now().strftime("%H:%M:%S")
         
-        # Icon mapping enhanced for v5.0 Self-Healing features
+        # Predator-themed Icon Mapping
         icons = {
-            "READ": "📖 [READ]   ",
-            "WRITE": "✍️ [WRITE]  ",
-            "FETCH": "📥 [FETCH]  ",
-            "CLEAN": "🗑️ [CLEAN]  ",
-            "EXEC":  "⚡ [EXEC]   ", # Shell commands (npm run dev, etc.)
-            "DEBUG": "🔍 [DEBUG]  ", # Headless validation
-            "CONTEXT": "🧠 [CONTEXT]",
-            "SUCCESS": "✅ [SUCCESS]",
-            "ERROR": "❌ [ERROR]  ",
-            "MEMORY": "💾 [MEMORY] ",
-            "SERVER": "🌐 [SERVER] ",
-            "GUARD": "🚦 [GUARD]  "
+            "PREDATOR": "🦁 [HUNTING] ",
+            "TARGET":   "🎯 [TARGET]  ",
+            "STRIKE":   "💥 [STRIKE]  ",
+            "SCAN":     "🔍 [SCANNING]",
+            "EXEC":     "⚡ [EXEC]    ",
+            "READ":     "📖 [READ]    ",
+            "WRITE":    "✍️ [WRITE]   ",
+            "SUCCESS":  "✅ [CLEAN]   ",
+            "ERROR":    "⚠️ [CRASH]   ",
+            "GUARD":    "🚦 [GUARD]   ",
+            "MEMORY":   "💾 [EVOLVE]  "
         }
         
         icon = icons.get(category, f"[{category}]")
         
-        # Color coding configuration
+        # Intense color coding for the Lion Edition
         cat_styles = {
-            "READ": "cyan",
-            "WRITE": "bold cyan",
-            "FETCH": "bold green",
-            "CLEAN": "bold red",
-            "EXEC": "bold yellow",
-            "DEBUG": "bold blue",
-            "CONTEXT": "bold yellow",
-            "SUCCESS": "bold green",
-            "ERROR": "bold red",
-            "MEMORY": "bold magenta",
-            "SERVER": "bold blue",
-            "GUARD": "bold orange3"
+            "PREDATOR": "bold yellow",
+            "TARGET":   "bold cyan",
+            "STRIKE":   "bold bright_red",
+            "SCAN":     "bold blue",
+            "EXEC":     "bold yellow",
+            "SUCCESS":  "bold green",
+            "ERROR":    "bold red",
+            "GUARD":    "bold orange3",
+            "MEMORY":   "bold magenta"
         }
         
         log_style = cat_styles.get(category, "white")
@@ -107,24 +103,26 @@ class Dashboard:
         console.print(text)
 
     @staticmethod
+    def show_hunt_progress(point: int, total: int, frame: int, status: str):
+        """Displays progress for each timeline probe point."""
+        color = "green" if status == "PASSED" else "red"
+        icon = "✅" if status == "PASSED" else "❌"
+        console.print(f"   [dim]Target {point}/{total}:[/dim] [bold white]Frame {frame:04}[/bold white] -> [{color}]{status} {icon}[/{color}]")
+
+    @staticmethod
     def ask_permission(tool_name: str, target: str) -> bool:
-        """Human-in-the-Loop Permission Prompt for guarded actions."""
+        """User Permission Prompt."""
         request_text = Text.assemble(
-            ("AI wants to use ", "white"),
+            ("Sentinel is holding for your command: ", "white"),
             (f"'{tool_name}'", "bold yellow"),
             ("\nTarget: ", "white"),
             (f"{target}", "bold cyan")
         )
-        
         console.print("\n")
-        console.print(Panel(request_text, title="[bold orange3]USER PERMISSION REQUIRED[/bold orange3]", border_style="orange3"))
-        
-        # The interactive Y/n prompt
-        response = Confirm.ask(f"[bold white]Allow this action?[/bold white]", default=False)
-        
+        console.print(Panel(request_text, title="[bold yellow]USER AUTHORIZATION REQUIRED[/bold yellow]", border_style="yellow"))
+        response = Confirm.ask(f"[bold white]Authorize this action?[/bold white]", default=False)
         if response:
-            Dashboard.log("SUCCESS", f"Permission granted for {tool_name}.")
+            Dashboard.log("SUCCESS", f"Action authorized.")
         else:
-            Dashboard.log("ERROR", f"Permission denied for {tool_name}.")
-            
+            Dashboard.log("ERROR", f"Action aborted by user.")
         return response

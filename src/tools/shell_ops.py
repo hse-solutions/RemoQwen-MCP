@@ -10,34 +10,40 @@ from config import (
     MODE_STRICT, MODE_BALANCED, MODE_FULLY_AUTO
 )
 from src.ui.dashboard import Dashboard as db
+from src.tools.remote_ops import RemoteCommander # NEW: For v7.0 Remote Auth
 
-# Initialize internal logger
+# Initialize internal bridge logger
 logger = logging.getLogger("remotion_bridge")
 
 def is_command_allowed(command_str: str) -> bool:
-    """Security check against the command whitelist."""
+    """Security Whitelist Check: Ensures only Remotion-related commands run."""
     base_cmd = command_str.split()[0].replace(".exe", "")
     return base_cmd in ALLOWED_COMMANDS
 
 async def run_command_async(command_str: str, silent: bool = False):
     """
-    Core ASYNC Shell Engine for v7.0.
-    Handles command whitelist, async execution, and real-time error capture.
+    v7.0 Hybrid Shell Engine.
+    Requires authorization via Terminal or Telegram based on configuration.
     """
+    # 1. Strict Security Whitelist Check
     if not is_command_allowed(command_str):
-        db.log("GUARD", f"Access Denied: {command_str}", style="bold red")
-        return "Error: Security Violation. Command not in whitelist."
+        db.log("GUARD", f"Unauthorized command blocked: {command_str}", style="bold red")
+        return "Error: Security Violation. Command not in allowed whitelist."
 
-    # Permission Handling (Now awaiting the async dashboard prompt)
+    # 2. Hybrid Permission Handling
     if not silent and config.SELECTED_MODE in [MODE_STRICT, MODE_BALANCED]:
-        # Dashboard.ask_permission must be called with await
-        if not await db.ask_permission("run_command", command_str):
-            return "Error: Command execution denied by user."
+        # Notify phone that AI is requesting terminal access
+        await RemoteCommander.send_notification(f"⚡ AI is requesting to run: `{command_str}`")
+        
+        # FIXED: Now awaiting the Hybrid Gate (Checks phone if Telegram is enabled)
+        if not await RemoteCommander.ask_hybrid_permission("run_command", command_str):
+            return "Error: Terminal execution denied by the user."
     elif not silent:
+        # Fully Autonomous Mode: Just log and proceed
         db.log("EXEC", f"Terminal Strike: {command_str}")
 
     try:
-        # Launch non-blocking subprocess
+        # Launch the non-blocking subprocess
         process = await asyncio.create_subprocess_shell(
             command_str,
             stdout=asyncio.subprocess.PIPE,
@@ -45,11 +51,11 @@ async def run_command_async(command_str: str, silent: bool = False):
             cwd=PROJECT_ROOT
         )
 
-        # Wait for execution and capture results
+        # Wait for completion and capture streams
         stdout, stderr = await process.communicate()
         full_log = (stdout.decode() + "\n" + stderr.decode()).strip()
 
-        # Predator Scanning: Search for critical crash keywords
+        # Autonomous Error Hunting: Scan for crash keywords
         if any(key in full_log for key in ERROR_KEYWORDS):
             log_lines = full_log.split('\n')
             error_context = "\n".join(log_lines[-15:])
@@ -58,13 +64,14 @@ async def run_command_async(command_str: str, silent: bool = False):
         return full_log
 
     except Exception as e:
-        db.log("ERROR", f"Shell failure: {str(e)}")
+        db.log("ERROR", f"Terminal failure: {str(e)}")
         return f"Execution Failure: {str(e)}"
 
 async def get_video_metadata():
-    """Asynchronously probes the video duration for the hunt."""
-    db.log("SCAN", "Sniffing out video frames for validation...")
+    """Asynchronously probes the Remotion project for metadata."""
+    db.log("SCAN", "Sniffing out video duration for the hunt...")
     probe_cmd = "npx remotion probe src/index.ts"
+    # Internal commands are silent to avoid permission fatigue
     res = await run_command_async(probe_cmd, silent=True)
     
     match = re.search(r"durationInFrames:\s*(\d+)", res)
@@ -72,10 +79,10 @@ async def get_video_metadata():
 
 async def verify_runtime_logic():
     """
-    THE SENTINEL LION (v7.0 Stable): Sequential Async Probing.
-    Waits for each probe point to finish before moving to the next.
+    v7.0 SENTINEL LION: Sequential Async Multi-Point Hunting.
+    Probes strategic points in the timeline to catch browser-level crashes.
     """
-    db.log("PREDATOR", "Lion Mode: Autonomous Validation Started.")
+    db.log("PREDATOR", "Lion Mode: Sequential Hunt Started.")
     
     try:
         total_frames = await get_video_metadata()
@@ -88,7 +95,7 @@ async def verify_runtime_logic():
             
             hunt_cmd = f"npx remotion still src/index.ts --frame={frame} --output={temp_img} {REMOTION_LOG_LEVEL}"
             
-            # Execute probe silently and wait for result
+            # Execute probe and wait for browser feedback
             result = await run_command_async(hunt_cmd, silent=True)
             
             if "CRITICAL ERROR" in result or "Error" in result:
@@ -96,13 +103,13 @@ async def verify_runtime_logic():
                 db.show_hunt_progress(i+1, DEEP_SCAN_POINTS, frame, "FAILED")
                 
                 if os.path.exists(temp_img): os.remove(temp_img)
-                return f"SENTINEL LION STRIKE: Logic crashed at frame {frame}. Fix this error:\n{result}"
+                return f"SENTINEL LION STRIKE: Code crashed at frame {frame}. Logs:\n{result}"
             
             db.show_hunt_progress(i+1, DEEP_SCAN_POINTS, frame, "PASSED")
 
         if os.path.exists(temp_img): os.remove(temp_img)
         db.log("SUCCESS", "The hunt is clean. Video logic is 100% safe.")
-        return "Success: Video passed all autonomous logic probes."
+        return "Success: Video passed all autonomous probes."
         
     except Exception as e:
         return f"Hunting Failure: {str(e)}"

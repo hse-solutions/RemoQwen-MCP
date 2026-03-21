@@ -51,7 +51,7 @@ def run_command(command_str: str, silent: bool = False):
         error_detected = False
 
         # Monitor stream for errors
-        while time.time() - start_time < (COMMAND_TIMEOUT if not silent else 30):
+        while time.time() - start_time < COMMAND_TIMEOUT:
             line = process.stdout.readline()
             if not line and process.poll() is not None: break
             if line:

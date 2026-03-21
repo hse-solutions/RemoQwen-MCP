@@ -13,6 +13,9 @@ from src.ui.dashboard import Dashboard as db
 # PRODUCTION ENGINE CONFIGURATION
 # =============================================================================
 
+# Initialize the port numnber as global
+config.PORT = 8000
+
 # Fully silence background noise for a clean Dashboard experience
 logging.getLogger("uvicorn.error").setLevel(logging.CRITICAL)
 logging.getLogger("uvicorn.access").setLevel(logging.CRITICAL)
@@ -59,7 +62,7 @@ if __name__ == "__main__":
         config.SELECTED_MODE = selected_mode
         
         # 4. Show Status Board with Selected Mode & URL
-        db.status_board(config.SELECTED_MODE, "http://127.0.0.1:8000/sse")
+        db.status_board(config.SELECTED_MODE, f"http://127.0.0.1:{config.PORT}/sse")
         
         db.log("SERVER", "Engine Stabilized. Monitoring AI operations...")
         
@@ -67,7 +70,7 @@ if __name__ == "__main__":
         uvicorn.run(
             app, 
             host="127.0.0.1", 
-            port=8000, 
+            port=config.PORT, 
             access_log=False, 
             log_level="critical"
         )

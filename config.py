@@ -21,7 +21,7 @@ SELECTED_MODE = MODE_BALANCED
 ALLOWED_COMMANDS = ["npm", "npx", "node", "remotion"]
 
 # Timeouts and Scan Durations
-COMMAND_TIMEOUT = 120  # Increased for deep rendering tasks
+COMMAND_TIMEOUT = 300  # Increased for deep rendering tasks
 PREVIEW_SCAN_DURATION = 15  # Monitoring window for dev server logs
 
 # =============================================================================

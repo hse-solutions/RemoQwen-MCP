@@ -165,7 +165,7 @@ class Dashboard:
         ).ask_async()
         
         if response:
-            Dashboard.log("SUCCESS", f"Action authorized by HIRUNA.")
+            Dashboard.log("SUCCESS", f"Action authorized by USER.")
         else:
             Dashboard.log("ERROR", f"Action rejected locally.")
             

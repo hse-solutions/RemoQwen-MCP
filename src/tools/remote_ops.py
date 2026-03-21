@@ -6,13 +6,13 @@ from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQu
 import config
 from src.ui.dashboard import Dashboard as db
 
-# Initialize bridge logger
+# Initialize internal logging for v7.0 stability
 logger = logging.getLogger("remotion_bridge")
 
 class RemoteCommander:
     """
-    v7.0 REMOTE GATEWAY: The Heart of the Remote Commander.
-    Handles Telegram orchestration, hybrid permissions, and path-safe task injection.
+    v7.0 REMOTE COMMANDER: The ultimate Gateway Engine.
+    Features: Silent Task Sync, Hybrid Permission Gates, and Real-time Notification.
     """
     _app: Application = None
     _permission_event = asyncio.Event()
@@ -20,55 +20,53 @@ class RemoteCommander:
 
     @classmethod
     async def start_bot(cls):
-        """Initializes and starts the Telegram Bot polling within the existing server loop."""
+        """Initializes the Telegram polling loop within the server's lifecycle."""
         if not config.TELEGRAM_ENABLED or not config.TELEGRAM_TOKEN:
             return
 
         db.log("SERVER", "Booting Telegram Remote Gateway...")
         
         try:
-            # Build the Telegram Application instance
+            # Build Application
             cls._app = Application.builder().token(config.TELEGRAM_TOKEN).build()
 
-            # Register Command and Action Handlers
+            # Register Core Handlers
             cls._app.add_handler(CommandHandler("start", cls._cmd_start))
             cls._app.add_handler(CommandHandler("help", cls._cmd_help))
             cls._app.add_handler(CommandHandler("status", cls._cmd_status))
             cls._app.add_handler(CallbackQueryHandler(cls._handle_permission_callback))
             cls._app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, cls._handle_remote_prompt))
 
-            # Startup Sequence: Initialize -> Start -> Start Polling
+            # Async Warm-up
             await cls._app.initialize()
             await cls._app.start()
             await cls._app.updater.start_polling(drop_pending_updates=True)
             
             db.log("SUCCESS", "Remote Commander linked and encrypted.")
             
-            # Send initial confirmation to the phone
+            # Welcome message to the user
             await cls._app.bot.send_message(
                 chat_id=config.AUTHORIZED_CHAT_ID,
-                text="🦁 *SENTINEL LION ONLINE*\nRemote Commander is active. Use /status to check terminal.",
+                text="🦁 *SENTINEL LION ONLINE*\nI am connected to your PC. Send a prompt to start building.",
                 parse_mode="Markdown"
             )
 
         except Exception as e:
-            db.log("ERROR", f"Telegram Gateway failure: {str(e)}")
+            db.log("ERROR", f"Gateway failure: {str(e)}")
 
     @staticmethod
     async def _cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if str(update.effective_user.id) != str(config.AUTHORIZED_CHAT_ID): return
-        await update.message.reply_text(
-            f"👋 Welcome Boss!\n\nI am your RemoQwen-MCP v7.0 Engineer.\n"
-            f"Current Mode: {config.SELECTED_MODE}\n\nUse /help for commands."
-        )
+        await update.message.reply_text(f"👋 Greetings Boss!\nRemoQwen-MCP v7.0 is standing by.\nMode: {config.SELECTED_MODE}")
 
     @staticmethod
     async def _cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        help_text = "🚀 *REMOTE COMMANDER HELP*\n\n💬 *Send text* - Start video task\n📊 /status - Terminal snapshot\n🛡️ /help - This manual"
-        await update.message.reply_markdown(help_text)
+        help_msg = "🚀 *REMOTE COMMANDS*\n\n💬 *Just Text* - Injects a new mission\n📊 /status - Real-time radar\n🛡️ /help - This guide"
+        await update.message.reply_markdown(help_msg)
 
     @staticmethod
     async def _cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if str(update.effective_user.id) != str(config.AUTHORIZED_CHAT_ID): return
         status_card = (
             "📡 *MISSION CONTROL RADAR*\n"
             "───────────────────\n"
@@ -80,26 +78,33 @@ class RemoteCommander:
 
     @classmethod
     async def _handle_remote_prompt(cls, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Captures prompts and safely injects them into the project src folder."""
+        """
+        THE SILENT SYNC: Intercepts Telegram text and writes it directly to the 
+        project's src folder so the AI can read it via 'initialize_task'.
+        """
         if str(update.effective_user.id) != str(config.AUTHORIZED_CHAT_ID): return
         
         prompt = update.message.text
-        db.log("REMOTE", f"New instruction from phone: {prompt[:30]}...")
+        db.log("REMOTE", f"Capturing remote instruction: {prompt[:30]}...")
 
         try:
-            # 🛡️ THE FIX: Automatically ensure 'src' folder exists in the project root
+            # 🛡️ BULLETPROOF PATHING: Ensure the directory exists
             os.makedirs(os.path.dirname(config.REMOTE_TASK_FILE), exist_ok=True)
             
+            # ATOMIC WRITE: Overwrite existing task to keep AI focused
             with open(config.REMOTE_TASK_FILE, "w", encoding="utf-8") as f:
-                f.write(f"# REMOTE TASK RECEIVED\n\n{prompt}")
-            await update.message.reply_text("⚡ Task synchronized. AI brain notified.")
+                f.write(f"# 🚨 REMOTE MISSION RECEIVED\n\n{prompt}\n\n---\n*Source: Telegram Remote Commander*")
+            
+            db.log("SUCCESS", "Remote task synchronized with AI brain.")
+            await update.message.reply_text("⚡ *TASK SYNCED ✅*\nQwen is being notified. Watch the terminal or wait for updates.")
+            
         except Exception as e:
-            db.log("ERROR", f"Remote sync failed: {str(e)}")
-            await update.message.reply_text(f"❌ Failed to sync: {e}")
+            db.log("ERROR", f"Silent sync failed: {str(e)}")
+            await update.message.reply_text(f"❌ *SYNC ERROR:* {e}")
 
     @classmethod
     async def send_notification(cls, message: str):
-        """Pushes real-time terminal activity logs to the user's phone."""
+        """Utility to push instant terminal updates to the phone."""
         if cls._app and config.TELEGRAM_ENABLED:
             try:
                 await cls._app.bot.send_message(chat_id=config.AUTHORIZED_CHAT_ID, text=message)
@@ -108,14 +113,14 @@ class RemoteCommander:
     @classmethod
     async def ask_hybrid_permission(cls, tool_name: str, target: str) -> bool:
         """
-        THE HYBRID GATE: Waits for phone approval if Telegram is ON, 
-        else asks on terminal.
+        HYBRID GATE v7.0: Decides where to ask for permission based on active mode.
+        If Telegram is ON, it sends buttons to the phone and blocks locally until clicked.
         """
-        # Fallback to local terminal if Telegram mode is off or not configured
         if not cls._app or not config.TELEGRAM_ENABLED:
+            # Fallback to Terminal UI if remote is disabled
             return await db.ask_permission(tool_name, target)
 
-        db.log("GUARD", f"Pending remote authorization for '{tool_name}' on phone...", style="bold magenta")
+        db.log("GUARD", f"Awaiting remote authorization for '{tool_name}'...", style="bold magenta")
         
         keyboard = [[
             InlineKeyboardButton("✅ APPROVE", callback_data="perm_yes"),
@@ -132,24 +137,24 @@ class RemoteCommander:
             parse_mode="Markdown"
         )
         
-        # Block and wait for the signal from the phone
+        # ASYNC BLOCK: Wait for phone input without hanging the server heartbeat
         await cls._permission_event.wait()
         return cls._last_permission_result
 
     @classmethod
     async def _handle_permission_callback(cls, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handles button interactions from Telegram and unblocks the server wait."""
+        """Handles the button response from Telegram."""
         query = update.callback_query
         await query.answer()
         
         if query.data == "perm_yes":
             cls._last_permission_result = True
-            await query.edit_message_text(text="✅ *PERMISSION GRANTED* (Executing...)")
-            db.log("SUCCESS", "Action approved via Telegram.")
+            await query.edit_message_text(text="✅ *PERMISSION GRANTED* (Executing on PC...)")
+            db.log("SUCCESS", "Remote approval received.")
         else:
             cls._last_permission_result = False
-            await query.edit_message_text(text="❌ *PERMISSION DENIED* (Aborted.)")
-            db.log("ERROR", "Action rejected via Telegram.")
+            await query.edit_message_text(text="❌ *PERMISSION DENIED* (Aborted locally.)")
+            db.log("ERROR", "Remote rejection received.")
         
-        # Signal the waiting tool to continue
+        # UNBLOCK: Release the server task
         cls._permission_event.set()

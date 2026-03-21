@@ -19,37 +19,29 @@ server = Server(config.APP_NAME)
 @server.list_tools()
 async def handle_list_tools():
     """
-    Exposes the v7.0 toolset with highly detailed descriptions.
-    Tuned for maximum AI reasoning and autonomous error correction.
+    Exposes the v7.0 toolset with high-detail descriptions to guide the AI brain.
     """
-    db.log("SERVER", "AI Engineer is synchronizing v7.0 Remote toolset...")
+    db.log("SERVER", "AI Engineer is synchronizing elite v7.0 toolset...")
     
     return [
         Tool(
             name="initialize_task",
-            description=(
-                "MANDATORY FIRST STEP: Loads memory, skills, and project state. "
-                "Also checks for REMOTE MISSIONS sent from the user's phone via Telegram. "
-                "ALWAYS call this before starting any task."
-            ),
+            description="MANDATORY FIRST STEP: Synchronizes memory, skills, and checks for REMOTE MISSIONS from Telegram.",
             inputSchema={"type": "object", "properties": {}}
         ),
         Tool(
             name="list_files",
-            description="Exploration: Lists files to understand project structure.",
+            description="Exploration: Lists all files in a directory to understand project structure.",
             inputSchema={"type": "object", "properties": {"rel_path": {"type": "string"}}}
         ),
         Tool(
             name="read_file",
-            description="Knowledge Acquisition: Reads content of any code or doc file.",
+            description="Knowledge Acquisition: Reads the full text content of any code or doc file.",
             inputSchema={"type": "object", "properties": {"rel_path": {"type": "string"}}, "required": ["rel_path"]}
         ),
         Tool(
             name="write_file",
-            description=(
-                "Action: Writes code with auto-validation for Remotion best practices. "
-                "Requires explicit user authorization (Y/n) from phone or terminal."
-            ),
+            description="Action Engine: Creates/Updates files. Auto-validates Remotion rules. Requires User Authorization.",
             inputSchema={
                 "type": "object", 
                 "properties": {
@@ -61,7 +53,7 @@ async def handle_list_tools():
         ),
         Tool(
             name="run_shell_command",
-            description="Terminal Strike: Runs npm/npx commands with real-time log monitoring.",
+            description="Terminal Strike: Executes npm/npx/remotion commands with real-time log monitoring.",
             inputSchema={
                 "type": "object",
                 "properties": {"command": {"type": "string"}},
@@ -70,15 +62,12 @@ async def handle_list_tools():
         ),
         Tool(
             name="verify_rendering",
-            description="SENTINEL LION HUNT: Headless deep scan of the timeline to catch browser-only crashes.",
+            description="SENTINEL LION HUNT: Headless deep-scan of 5 timeline points to catch browser-level crashes.",
             inputSchema={"type": "object", "properties": {}}
         ),
         Tool(
             name="download_asset",
-            description=(
-                "Branding Gateway: Downloads images/logos to public/ folder. "
-                "Requires explicit user authorization from phone or terminal."
-            ),
+            description="Branding Gateway: Downloads images/logos to public/ folder. Requires User Authorization.",
             inputSchema={
                 "type": "object", 
                 "properties": {
@@ -90,12 +79,12 @@ async def handle_list_tools():
         ),
         Tool(
             name="cleanup_project",
-            description="Sanitization: Archives unused scenes to keep the project professional.",
+            description="Sanitization: Archives unused scene files to keep codebase professional.",
             inputSchema={"type": "object", "properties": {}}
         ),
         Tool(
             name="update_memory",
-            description="Evolutionary Step: Saves mission findings to Top 20 memory rules.",
+            description="Evolution: Saves mission findings to Top 20 evolutionary rules.",
             inputSchema={"type": "object", "properties": {"lesson": {"type": "string"}}, "required": ["lesson"]}
         )
     ]
@@ -103,15 +92,14 @@ async def handle_list_tools():
 @server.call_tool()
 async def handle_call_tool(name: str, arguments: dict):
     """
-    v7.0 Master Dispatcher: Orchestrates local and remote autonomous interactions.
-    Now fully asynchronous to maintain the Immortal SSE connection.
+    v7.0 Master Dispatcher: Synchronizes local and remote operations via the Async Pipeline.
     """
     try:
         if name == "initialize_task":
             db.log("CONTEXT", "Generating full autonomous context...")
             base_context = memory_ops.get_autonomous_context()
             
-            # Atomic Remote Task Injection
+            # Atomic Remote Task Injection logic
             remote_instructions = ""
             if os.path.exists(config.REMOTE_TASK_FILE):
                 try:
@@ -120,28 +108,29 @@ async def handle_call_tool(name: str, arguments: dict):
                         if content:
                             remote_instructions = f"\n\n🚨 [REMOTE MISSION RECEIVED]:\n{content}\n\nACTION: Prioritize this phone request."
                             db.log("REMOTE", "Injected instructions from phone into AI brain.")
-                            # Clear the file after read to prevent repeat tasks
+                            # Clear task file after successful sync
                             with open(config.REMOTE_TASK_FILE, 'w', encoding='utf-8') as f_clear:
                                 f_clear.write("")
                 except Exception as e:
                     db.log("ERROR", f"Remote sync failed: {e}")
 
-            res = base_context + remote_instructions
+            res = str(base_context) + str(remote_instructions)
             db.log("SUCCESS", "Sentinel brain is synchronized.")
 
         elif name == "list_files":
-            res = file_ops.list_project_files(arguments.get("rel_path", "."))
+            # FIXED: Added await to prevent Coroutine crash
+            res = await file_ops.list_project_files(arguments.get("rel_path", "."))
 
         elif name == "read_file":
-            res = file_ops.read_project_file(arguments["rel_path"])
+            # FIXED: Added await to ensure string return
+            res = await file_ops.read_project_file(arguments["rel_path"])
 
         elif name == "write_file":
-            # FIXED: Now awaiting the async write process with hybrid authorization
-            await remote_ops.RemoteCommander.send_notification(f"✍️ AI is attempting to write: {arguments['rel_path']}")
+            await remote_ops.RemoteCommander.send_notification(f"✍️ [ACTION]: AI is writing {arguments['rel_path']}")
             res = await file_ops.write_project_file(arguments["rel_path"], arguments["content"])
             
             if "CRITICAL ERROR" in res:
-                db.log("GUARD", "Validation failed. AI must fix code.", style="bold red")
+                db.log("GUARD", "Local validation failed. AI must fix logic.", style="bold red")
             else:
                 db.log("SUCCESS", f"File saved: {arguments['rel_path']}")
 
@@ -150,31 +139,30 @@ async def handle_call_tool(name: str, arguments: dict):
             res = await shell_ops.run_command_async(arguments["command"])
 
         elif name == "verify_rendering":
-            # Execute the Predator hunt
             res = await shell_ops.verify_runtime_logic()
             status_msg = "✅ CLEAN" if "Success" in res else "❌ CRASHED"
-            await remote_ops.RemoteCommander.send_notification(f"🦁 Hunt Result: {status_msg}")
+            await remote_ops.RemoteCommander.send_notification(f"🦁 [SENTINEL]: Hunt complete. Result: {status_msg}")
 
         elif name == "download_asset":
-            # FIXED: Now awaiting the async download with hybrid authorization
-            await remote_ops.RemoteCommander.send_notification("📥 AI is requesting branding assets.")
+            await remote_ops.RemoteCommander.send_notification("📥 [FETCH]: AI is requesting branding assets.")
             res = await asset_ops.download_asset(arguments["url"], arguments["filename"])
 
         elif name == "cleanup_project":
-            # FIXED: Now awaiting async sanitization
+            db.log("PREDATOR", "Cleaning unused scene components...")
             res = await file_ops.archive_unused_files()
-            await remote_ops.RemoteCommander.send_notification("🧹 Project sanitized.")
+            await remote_ops.RemoteCommander.send_notification("🧹 [CLEANUP]: Project sanitized.")
 
         elif name == "update_memory":
             res = memory_ops.update_memory(arguments["lesson"])
-            db.log("SUCCESS", "Mission findings committed to evolutionary memory.")
-            await remote_ops.RemoteCommander.send_notification("💾 Mission Complete. Memory evolved.")
+            db.log("SUCCESS", "Knowledge base evolved.")
+            await remote_ops.RemoteCommander.send_notification("💾 [MEMORY]: Lesson committed. Mission successful.")
 
         else:
             res = f"Error: Tool '{name}' not found."
 
-        return [TextContent(type="text", text=res)]
+        # Safety Check: Ensure the final result is always a string for TextContent
+        return [TextContent(type="text", text=str(res))]
 
     except Exception as e:
-        db.log("ERROR", f"Dispatcher failure: {str(e)}")
+        db.log("ERROR", f"Dispatcher critical crash: {str(e)}")
         return [TextContent(type="text", text=f"Critical Error: {str(e)}")]

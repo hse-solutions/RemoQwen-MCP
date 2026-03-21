@@ -1,54 +1,57 @@
 import os
-import requests
+import httpx # NEW: Using Async HTTP client for v7.0 stability
 import logging
 import config
 from config import validate_path, MODE_STRICT, MODE_BALANCED, MODE_FULLY_AUTO
 from src.ui.dashboard import Dashboard as db
+from src.tools.remote_ops import RemoteCommander # NEW: For v7.0 Hybrid Permissions
 
 logger = logging.getLogger("remotion_bridge")
 
-def download_asset(url: str, filename: str):
+async def download_asset(url: str, filename: str):
     """
-    Downloads an external asset with Mode-Aware Permission Handling.
-    
-    Mode Logic:
-    - MODE_STRICT & MODE_BALANCED: Requires human permission (Y/n).
-    - MODE_FULLY_AUTO: Automatic download with high visibility log.
+    v7.0 Guarded Async Asset Downloader.
+    Features: Mode-Aware Hybrid Permissions and Non-blocking Downloads.
     """
-    # 1. Permission Gate based on Operational Mode
+    # 1. Hybrid Permission Gate
+    # Balanced and Strict modes require authorization via Phone or Terminal
     if config.SELECTED_MODE in [MODE_STRICT, MODE_BALANCED]:
-        # Always ask for permission before hitting the network in Guarded/Strict modes
-        if not db.ask_permission("download_asset", url):
+        # Await the signal from the user (Hybrid: Telegram + Local)
+        if not await RemoteCommander.ask_hybrid_permission("download_asset", url):
             return f"Error: Download of '{filename}' from '{url}' was denied by the user."
     else:
-        # Fully Autonomous Mode: Proceed but show the FETCH icon for transparency
-        db.log("FETCH", f"Requesting asset from: {url}")
+        # Fully Autonomous Mode: Transparent logging
+        db.log("FETCH", f"Automatically requesting asset from: {url}")
 
-    # 2. Execution Logic (Path Security Jail)
+    # 2. Path Security and Execution
     try:
         rel_path = os.path.join("public", filename)
         abs_path = validate_path(rel_path)
         
-        # Browser-like headers to avoid 403 Forbidden errors
+        # Browser-mimicking headers to bypass security filters (e.g. Wikipedia)
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
 
-        # Request the asset with a 20-second timeout
-        response = requests.get(url, stream=True, timeout=20, headers=headers)
-        response.raise_for_status()
+        # 3. Non-blocking Async Download using httpx
+        async with httpx.AsyncClient(headers=headers, follow_redirects=True) as client:
+            db.log("SERVER", f"Downloading stream initiated for {filename}...")
+            response = await client.get(url, timeout=30.0)
+            response.raise_for_status()
+            
+            # Ensure the public directory exists before writing
+            os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+            
+            # Save the binary content
+            with open(abs_path, 'wb') as f:
+                f.write(response.content)
         
-        # Ensure the directory exists
-        os.makedirs(os.path.dirname(abs_path), exist_ok=True)
-        
-        # Write the binary content to the public folder
-        with open(abs_path, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
-        
-        db.log("SUCCESS", f"Asset '{filename}' fetched and saved to public folder.")
-        return f"Success: Asset '{filename}' is ready."
+        db.log("SUCCESS", f"Asset '{filename}' successfully saved to public folder.")
+        return f"Success: Asset '{filename}' is ready for use."
 
+    except httpx.HTTPStatusError as e:
+        db.log("ERROR", f"Web rejection (HTTP {e.response.status_code}) for {url}")
+        return f"Error: The website blocked the download. Try a different URL."
     except Exception as e:
-        db.log("ERROR", f"Download failed for {url}: {str(e)}")
+        db.log("ERROR", f"Download failed: {str(e)}")
         return f"Error: Failed to fetch asset. {str(e)}"

@@ -4,94 +4,122 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 from rich.prompt import Confirm
+from rich.align import Align
 from datetime import datetime
-from config import MODE_FULLY_AUTO, MODE_BALANCED, MODE_STRICT
+import config
 
-# Initialize Rich Console
+# Initialize Rich Console for High-End Terminal UI
 console = Console()
 
 class Dashboard:
     """
-    Advanced Operational Dashboard for RemoQwen-MCP v6.0.
-    SENTINEL LION EDITION: Featuring Autonomous Error Hunting & Deep Scanning.
+    v7.0 REMOTE COMMANDER: The Ultimate Autonomous Dashboard.
+    Features: Massive ASCII Branding, Mode-Aware Selection, and Async Permission Gates.
     """
     
     @staticmethod
     def header():
-        """Displays the cinematic v6.0 branding banner."""
+        """Displays the high-impact ASCII Branding Banner for RemoQwen-MCP."""
         console.clear()
-        banner = Text.assemble(
-            ("REMOQWEN-MCP v6.0\n", "bold yellow"),
-            ("SENTINEL LION: Autonomous Error Hunting Edition\n", "italic white"),
-            ("────────────────────────────────────────────────", "bright_red")
-        )
-        console.print(Panel.fit(banner, border_style="bright_red", padding=(1, 2)))
+        
+        # Unique Brand Identity for v7.0
+        ascii_art = r"""
+  ____                      ___                       
+ |  _ \ ___ _ __ ___   ___ / _ \__      _____ _ __  
+ | |_) / _ \ '_ ` _ \ / _ \ | | \ \ /\ / / _ \ '_ \ 
+ |  _ <  __/ | | | | | (_) | |_| |\ V  V /  __/ | | |
+ |_| \_\___|_| |_| |_|\___/ \__\_\ \_/\_/ \___|_| |_|
+        """
+        
+        banner_text = Text()
+        banner_text.append(ascii_art, style="bold cyan")
+        banner_text.append(f"\n      [{config.VERSION}] - {config.CODENAME}\n", style="italic magenta")
+        banner_text.append("   " + "─" * 50, style="dim white")
+        
+        console.print(Align.center(banner_text))
+        # Unique Developer Tagging
+        console.print(Align.center(f"[bold white]Developed by [/][bold magenta]HIRUNA[/][bold white] | [dim white]Autonomous AI Video Engineer[/dim white]\n"))
 
     @staticmethod
     def select_mode() -> str:
-        """Interactive Arrow-Key Menu to select the bridge operation mode."""
-        console.print("\n[bold white]Select Operational Intensity:[/bold white]")
+        """
+        Interactive Mode Selection. 
+        Runs synchronously at startup to lock the operational state.
+        """
+        console.print("[bold white]▶ SYSTEM ACCESS GRANTED. SELECT OPERATIONAL INTENSITY:[/bold white]")
+        
+        # Uses questionary for a smooth arrow-key selection experience
         choice = questionary.select(
             "",
             choices=[
-                questionary.Choice(title=f"🚀 {MODE_FULLY_AUTO}", value=MODE_FULLY_AUTO),
-                questionary.Choice(title=f"⚖️  {MODE_BALANCED}", value=MODE_BALANCED),
-                questionary.Choice(title=f"🛡️  {MODE_STRICT}", value=MODE_STRICT),
+                questionary.Choice(title=f"🚀 {config.MODE_FULLY_AUTO}", value=config.MODE_FULLY_AUTO),
+                questionary.Choice(title=f"⚖️  {config.MODE_BALANCED}", value=config.MODE_BALANCED),
+                questionary.Choice(title=f"🛡️  {config.MODE_STRICT}", value=config.MODE_STRICT),
             ],
             style=questionary.Style([
-                ('pointer', 'fg:yellow bold'),
-                ('highlighted', 'fg:yellow bold'),
+                ('pointer', 'fg:magenta bold'),
+                ('highlighted', 'fg:magenta bold'),
                 ('selected', 'fg:green'),
             ])
         ).ask()
         return choice
 
     @staticmethod
-    def status_board(mode: str, url: str):
-        """Displays the active configuration and connection info."""
+    def status_board():
+        """Displays the mission control radar with hybrid connectivity status."""
+        tg_status = "[bold green]ENABLED ✅[/bold green]" if config.TELEGRAM_ENABLED else "[bold red]DISABLED ❌[/bold red]"
+        
         status_text = Text.assemble(
-            ("HUNTING MODE: ", "white"), (f"{mode}\n", "bold yellow"),
-            ("SENTINEL:     ", "white"), ("ACTIVE ✅\n", "bold green"),
-            ("SSE URL:      ", "white"), (f"{url}", "bold green underline")
+            ("CORE STATUS:   ", "white"), ("IMMORTAL ONLINE\n", "bold green"),
+            ("INTENSITY:     ", "white"), (f"{config.SELECTED_MODE}\n", "bold yellow"),
+            ("TELEGRAM GW:   ", "white"), (f"{tg_status}\n", "white"),
+            ("LOCAL SSE:     ", "white"), ("http://127.0.0.1:8000/sse", "bold cyan underline")
         )
-        console.print(Panel(status_text, title="[bold red]SENTINEL LION RADAR[/bold red]", border_style="red", expand=False))
+        
+        console.print(Panel(
+            status_text, 
+            title="[bold magenta]MISSION CONTROL RADAR[/bold magenta]", 
+            border_style="magenta", 
+            expand=False
+        ))
 
     @staticmethod
     def log(category: str, message: str, style: str = "white"):
         """
-        Lion-themed professional logging system for v6.0.
-        Visualizes the hunt, the targets, and the strikes on errors.
+        Unified Icon-based professional logging for local and remote actions.
+        Categories automatically map to high-visibility icons.
         """
         time_str = datetime.now().strftime("%H:%M:%S")
         
-        # Predator-themed Icon Mapping
         icons = {
             "PREDATOR": "🦁 [HUNTING] ",
             "TARGET":   "🎯 [TARGET]  ",
             "STRIKE":   "💥 [STRIKE]  ",
-            "SCAN":     "🔍 [SCANNING]",
+            "REMOTE":   "📱 [TELEGRAM]",
             "EXEC":     "⚡ [EXEC]    ",
             "READ":     "📖 [READ]    ",
             "WRITE":    "✍️ [WRITE]   ",
-            "SUCCESS":  "✅ [CLEAN]   ",
+            "SUCCESS":  "✅ [SUCCESS] ",
             "ERROR":    "⚠️ [CRASH]   ",
-            "GUARD":    "🚦 [GUARD]   ",
-            "MEMORY":   "💾 [EVOLVE]  "
+            "MEMORY":   "💾 [EVOLVE]  ",
+            "SERVER":   "🌐 [SERVER]  ",
+            "GUARD":    "🚦 [GUARD]   "
         }
         
         icon = icons.get(category, f"[{category}]")
         
-        # Intense color coding for the Lion Edition
+        # Professional Color Palette mapping
         cat_styles = {
             "PREDATOR": "bold yellow",
             "TARGET":   "bold cyan",
             "STRIKE":   "bold bright_red",
-            "SCAN":     "bold blue",
+            "REMOTE":   "bold magenta",
             "EXEC":     "bold yellow",
             "SUCCESS":  "bold green",
             "ERROR":    "bold red",
-            "GUARD":    "bold orange3",
-            "MEMORY":   "bold magenta"
+            "MEMORY":   "bold magenta",
+            "SERVER":   "bold blue",
+            "GUARD":    "bold orange3"
         }
         
         log_style = cat_styles.get(category, "white")
@@ -104,25 +132,41 @@ class Dashboard:
 
     @staticmethod
     def show_hunt_progress(point: int, total: int, frame: int, status: str):
-        """Displays progress for each timeline probe point."""
+        """Visualizes the Sentinel Lion's hunt progress in real-time."""
         color = "green" if status == "PASSED" else "red"
         icon = "✅" if status == "PASSED" else "❌"
         console.print(f"   [dim]Target {point}/{total}:[/dim] [bold white]Frame {frame:04}[/bold white] -> [{color}]{status} {icon}[/{color}]")
 
     @staticmethod
-    def ask_permission(tool_name: str, target: str) -> bool:
-        """User Permission Prompt."""
+    async def ask_permission(tool_name: str, target: str) -> bool:
+        """
+        ASYNC PERMISSION GATE: Prevents event loop blocking.
+        Uses questionary.ask_async() to keep the background heartbeat alive 
+        while waiting for human input.
+        """
         request_text = Text.assemble(
-            ("Sentinel is holding for your command: ", "white"),
+            ("System is requesting permission to use ", "white"),
             (f"'{tool_name}'", "bold yellow"),
-            ("\nTarget: ", "white"),
+            ("\nTarget Resource: ", "white"),
             (f"{target}", "bold cyan")
         )
+        
         console.print("\n")
-        console.print(Panel(request_text, title="[bold yellow]USER AUTHORIZATION REQUIRED[/bold yellow]", border_style="yellow"))
-        response = Confirm.ask(f"[bold white]Authorize this action?[/bold white]", default=False)
+        console.print(Panel(
+            request_text, 
+            title="[bold yellow]PENDING AUTHORIZATION[/bold yellow]", 
+            border_style="yellow"
+        ))
+        
+        # FIXED: Non-blocking async prompt
+        response = await questionary.confirm(
+            f"Authorize {tool_name} locally?", 
+            default=False
+        ).ask_async()
+        
         if response:
-            Dashboard.log("SUCCESS", f"Action authorized.")
+            Dashboard.log("SUCCESS", f"Action authorized by HIRUNA.")
         else:
-            Dashboard.log("ERROR", f"Action aborted by user.")
+            Dashboard.log("ERROR", f"Action rejected locally.")
+            
         return response

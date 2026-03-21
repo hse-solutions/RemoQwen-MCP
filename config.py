@@ -1,39 +1,86 @@
 import os
 from dotenv import load_dotenv
 
-# Load local environment variables from a .env file
+# Initial load of environment variables from .env
 load_dotenv()
 
 # =============================================================================
-# OPERATION MODES DEFINITION (Preserved)
+# BRANDING & VERSION METADATA
+# =============================================================================
+APP_NAME = "RemoQwen-MCP"
+VERSION = "v7.0"
+CODENAME = "REMOTE COMMANDER"
+THEME_COLOR = "magenta" # Fixed: Standard color for maximum library compatibility
+
+# =============================================================================
+# OPERATION MODES DEFINITION
 # =============================================================================
 MODE_FULLY_AUTO = "Fully Autonomous (Speedster)"
 MODE_BALANCED = "Guarded Network (Professional)"
 MODE_STRICT = "Strict Manual (Architect)"
 
-# Global state for current session mode
 SELECTED_MODE = MODE_BALANCED 
+
+# =============================================================================
+# TELEGRAM REMOTE ORCHESTRATION (Dynamic State)
+# =============================================================================
+TELEGRAM_ENABLED = False
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+AUTHORIZED_CHAT_ID = os.getenv("AUTHORIZED_CHAT_ID")
+
+# These will be initialized properly in the refresh_env() call below
+PROJECT_ROOT = ""
+SRC_DIR = ""
+PUBLIC_DIR = ""
+SKILLS_DIR = ""
+MEMORY_FILE = ""
+REMOTE_TASK_FILE = ""
+
+def refresh_env():
+    """
+    DYNAMIC RELOADER: Re-reads .env and synchronizes all project paths.
+    Ensures that REMOTE_TASK_FILE always points to the correct 'src' folder 
+    defined in the user's REMOTION_PROJECT_PATH.
+    """
+    global TELEGRAM_TOKEN, AUTHORIZED_CHAT_ID, PROJECT_ROOT, SRC_DIR, \
+           PUBLIC_DIR, SKILLS_DIR, MEMORY_FILE, REMOTE_TASK_FILE
+    
+    load_dotenv(override=True)
+    
+    # Update Credentials
+    TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+    AUTHORIZED_CHAT_ID = os.getenv("AUTHORIZED_CHAT_ID")
+    
+    # 🛡️ THE PATH FIX: Get the absolute root from .env correctly
+    PROJECT_ROOT = os.path.normpath(
+        os.getenv("REMOTION_PROJECT_PATH", 
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "my-video")))
+    )
+    
+    # Initialize all sub-paths relative to the validated PROJECT_ROOT
+    SRC_DIR = os.path.join(PROJECT_ROOT, "src")
+    PUBLIC_DIR = os.path.join(PROJECT_ROOT, "public")
+    SKILLS_DIR = os.path.join(PROJECT_ROOT, ".qwen", "skills", "remotion-best-practices")
+    MEMORY_FILE = os.path.join(PROJECT_ROOT, "memory.md")
+    
+    # Ensure remote tasks are written into the actual project's src folder
+    REMOTE_TASK_FILE = os.path.join(SRC_DIR, "remote_task.md")
+
+# Run an immediate refresh to lock paths on startup
+refresh_env()
 
 # =============================================================================
 # SHELL & COMMAND SECURITY CONFIGURATION
 # =============================================================================
-# Strictly allow only these base commands for security
 ALLOWED_COMMANDS = ["npm", "npx", "node", "remotion"]
-
-# Timeouts and Scan Durations
-COMMAND_TIMEOUT = 300  # Increased for deep rendering tasks
-PREVIEW_SCAN_DURATION = 15  # Monitoring window for dev server logs
+COMMAND_TIMEOUT = 300 
+PREVIEW_SCAN_DURATION = 15 
 
 # =============================================================================
-# SENTINEL LION: ERROR HUNTING SETTINGS (New for v6.0)
+# SENTINEL LION: ERROR HUNTING SETTINGS (v6.0 Predator Logic)
 # =============================================================================
-# Number of strategic points in the timeline to probe (e.g., Start, 25%, 50%, 75%, End)
 DEEP_SCAN_POINTS = 5
-
-# Remotion verbosity flag to force browser errors into the terminal
 REMOTION_LOG_LEVEL = "--log=verbose"
-
-# Enhanced error keywords to catch React/Remotion internal crashes
 ERROR_KEYWORDS = [
     "ERROR", "Failed to compile", "SyntaxError", "Module not found", 
     "mismatch", "TypeError", "ReferenceError", "Invariant Violation",
@@ -41,23 +88,10 @@ ERROR_KEYWORDS = [
 ]
 
 # =============================================================================
-# UNIVERSAL CONFIGURATION & SECURITY PATH LOCKING
+# SECURITY JAIL & PATH VALIDATION
 # =============================================================================
-PROJECT_ROOT = os.path.normpath(
-    os.getenv("REMOTION_PROJECT_PATH", 
-    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "my-video")))
-)
-
-SRC_DIR = os.path.join(PROJECT_ROOT, "src")
-PUBLIC_DIR = os.path.join(PROJECT_ROOT, "public")
-SKILLS_DIR = os.path.join(PROJECT_ROOT, ".qwen", "skills", "remotion-best-practices")
-MEMORY_FILE = os.path.join(PROJECT_ROOT, "memory.md")
-
 def validate_path(relative_path: str) -> str:
-    """
-    Security Jail: Strictly ensures the AI stays inside the PROJECT_ROOT.
-    Logic preserved to guarantee 100% security during autonomous file operations.
-    """
+    """Strictly ensures the AI stays inside the user's PROJECT_ROOT."""
     try:
         absolute_path = os.path.abspath(os.path.join(PROJECT_ROOT, relative_path))
         if os.path.commonpath([absolute_path, PROJECT_ROOT]) == PROJECT_ROOT:

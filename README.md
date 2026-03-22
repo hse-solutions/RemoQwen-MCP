@@ -1,4 +1,3 @@
-```markdown
 # 🦁 RemoQwen-MCP v8.0 • ETERNAL WATCHER
 
 **✅ 100% FREE & OPEN SOURCE**  
@@ -167,4 +166,3 @@ Initialize context. Create a premium 8-second liquid glass animation (1080p, cin
 
 MIT License • Completely Free & Open Source Forever  
 Made with ❤️ by HIRUNA
-```

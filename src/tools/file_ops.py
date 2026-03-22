@@ -2,23 +2,22 @@ import os
 import re
 import shutil
 import logging
-import config
-from config import validate_path, PROJECT_ROOT, MODE_STRICT, MODE_BALANCED, MODE_FULLY_AUTO
-# This import now works perfectly because of the alias in dashboard.py
+import config # Importing the whole config for maximum reliability
+from config import validate_path, PROJECT_ROOT
+# Dashboard alias for visual logging
 from src.ui.dashboard import db
 from src.tools.remote_ops import RemoteCommander
 
-# Initialize bridge logger for internal tracking
+# Initialize internal logging for file operations
 logger = logging.getLogger("remotion_bridge")
 
 async def list_project_files(rel_path: str = "."):
     """
     Asynchronously lists project files. 
-    Maintains transparency with the Terminal Dashboard.
+    Maintains real-time visibility in the terminal dashboard.
     """
     try:
         abs_path = validate_path(rel_path)
-        # Visualizing the scan action
         db.log("READ", f"Scanning directory: {rel_path}")
         
         if not os.path.exists(abs_path):
@@ -32,7 +31,7 @@ async def list_project_files(rel_path: str = "."):
 async def read_project_file(rel_path: str):
     """
     Asynchronously reads code or task files. 
-    Crucial for the Eternal Loop to fetch instructions.
+    Essential for the AI to fetch instructions from the remote mission bridge.
     """
     try:
         abs_path = validate_path(rel_path)
@@ -45,14 +44,14 @@ async def read_project_file(rel_path: str):
 
 def validate_remotion_logic(content: str):
     """
-    SENTINEL LOGIC GUARD: Pure logic validation.
-    Checks for illegal public imports and interpolation array mismatches.
+    SENTINEL LOGIC GUARD: Pure syntax and Remotion best-practice validation.
+    Prevents invalid imports and interpolation mismatches before writing.
     """
-    # 1. Prevent relative imports from public folder
+    # 1. Prevent relative imports from public folder (Remotion Rule)
     if re.search(r"from\s+['\"](\.\.\/|\.\/)*public", content):
         return "CRITICAL ERROR: Use staticFile() instead of relative imports from public folder."
 
-    # 2. Prevent interpolate() length mismatches (The Predator Lion Rule)
+    # 2. Prevent interpolate() length mismatches (Predator Lion Rule)
     interpolation_matches = re.findall(r"interpolate\s*\(\s*[^,]+,\s*\[([^\]]+)\],\s*\[([^\]]+)\]", content)
     for match in interpolation_matches:
         input_range = [i.strip() for i in match[0].split(",") if i.strip()]
@@ -64,25 +63,26 @@ def validate_remotion_logic(content: str):
 
 async def write_project_file(rel_path: str, content: str):
     """
-    Guarded Write Engine: Synchronized with Hybrid Permissions (v7.1).
-    Asks for authorization via Phone or Terminal based on the selected mode.
+    Guarded Write Engine: Synchronized with Hybrid Permissions.
+    Supports Mode-Aware authorization (Strict vs Balanced/Auto).
     """
-    # 1. Run internal logic guard before any write attempt
+    # 1. Validation Logic
     error = validate_remotion_logic(content)
     if error:
         db.log("GUARD", f"Rejected logic in {rel_path}", style="bold red")
         return error
 
-    # 2. Handle Hybrid Permission Gate
-    if config.SELECTED_MODE == MODE_STRICT:
-        # Await authorization from phone (Telegram) or terminal locally
+    # 2. Operational Mode-Based Permission Gate
+    # FIXED: Using config.VARIABLE directly to avoid ImportErrors
+    if config.SELECTED_MODE == config.MODE_STRICT:
+        # Blocks until user authorizes via phone or terminal
         if not await RemoteCommander.ask_hybrid_permission("write_file", rel_path):
             return f"Error: Write access to '{rel_path}' was denied by the user."
     else:
-        # Balanced or Fully Auto: Just notify and proceed
+        # Balanced or Fully Auto: Real-time visual tracking
         db.log("WRITE", f"Writing to file: {rel_path}")
 
-    # 3. Execution within the validated Security Jail
+    # 3. Secure Execution
     try:
         abs_path = validate_path(rel_path)
         os.makedirs(os.path.dirname(abs_path), exist_ok=True)
@@ -90,28 +90,28 @@ async def write_project_file(rel_path: str, content: str):
         with open(abs_path, 'w', encoding='utf-8') as f:
             f.write(content)
             
-        db.log("SUCCESS", f"File {rel_path} secured.")
+        db.log("SUCCESS", f"File secured: {rel_path}")
         return f"Success: {rel_path} saved successfully."
     except Exception as e:
-        return f"Error writing file: {str(e)}"
+        return f"Error: {str(e)}"
 
 async def archive_unused_files():
     """
-    Sanitization Engine: Keeps the project professional by archiving unused components.
+    Project Sanitizer: Maintains a professional codebase by archiving unused scenes.
     """
     # Permission Handling
-    if config.SELECTED_MODE in [MODE_STRICT, MODE_BALANCED]:
+    if config.SELECTED_MODE in [config.MODE_STRICT, config.MODE_BALANCED]:
         if not await RemoteCommander.ask_hybrid_permission("cleanup_project", "unused components"):
             return "Error: Project cleanup was denied by the user."
     else:
-        db.log("CLEAN", "Autonomous cleanup initiated...")
+        db.log("CLEAN", "Autonomous project sanitization initiated...")
 
     root_path = os.path.join(PROJECT_ROOT, "src", "Root.tsx")
     scenes_dir = os.path.join(PROJECT_ROOT, "src", "scenes")
     archive_dir = os.path.join(PROJECT_ROOT, "archive")
 
     if not os.path.exists(root_path) or not os.path.exists(scenes_dir):
-        return "Cleanup skipped: Required project paths not found."
+        return "Cleanup skipped: Essential project paths missing."
 
     with open(root_path, 'r', encoding='utf-8') as f:
         root_content = f.read()
@@ -123,5 +123,5 @@ async def archive_unused_files():
             shutil.move(os.path.join(scenes_dir, fn), os.path.join(archive_dir, fn))
             count += 1
     
-    db.log("SUCCESS", f"Cleaned {count} unused scene files.")
-    return f"Cleanup complete. Moved {count} files to archive."
+    db.log("SUCCESS", f"Archived {count} unused scene files.")
+    return f"Cleanup complete. Moved {count} files to /archive."

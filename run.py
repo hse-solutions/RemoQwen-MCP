@@ -12,15 +12,16 @@ from mcp.server.sse import SseServerTransport
 
 import config
 from src.server import server
-from src.ui.dashboard import Dashboard as db
+# Importing via the synchronized alias in dashboard.py
+from src.ui.dashboard import db
 from src.tools.remote_ops import RemoteCommander
 
 # =============================================================================
-# AUTO-ONBOARDING WIZARD (Synchronous Logic)
+# AUTO-ONBOARDING WIZARD (Synchronous & Safe)
 # =============================================================================
 
 def update_env_file(key: str, value: str):
-    """Writes or updates configuration in the local .env file."""
+    """Safely updates or appends configuration keys in the .env file."""
     env_path = ".env"
     lines = []
     if os.path.exists(env_path):
@@ -41,18 +42,18 @@ def update_env_file(key: str, value: str):
         f.writelines(lines)
 
 def telegram_setup_wizard() -> bool:
-    """Configures Telegram Remote Gateway before the async loop starts."""
+    """Configures the Telegram Remote Gateway before entering the async loop."""
     if not config.TELEGRAM_TOKEN or not config.AUTHORIZED_CHAT_ID:
         setup_now = questionary.confirm("Telegram Remote Control is not configured. Setup now?", default=False).ask()
         
         if setup_now:
             token = questionary.text("Enter your Telegram Bot Token:").ask()
-            chat_id = questionary.text("Enter your Authorized Chat ID (Numbers only):").ask()
+            chat_id = questionary.text("Enter your Authorized Chat ID:").ask()
             
             if token and chat_id:
                 update_env_file("TELEGRAM_TOKEN", token)
                 update_env_file("AUTHORIZED_CHAT_ID", chat_id)
-                config.refresh_env()
+                config.refresh_env() # Reload into system memory
                 db.log("SUCCESS", "Remote credentials secured and activated.")
                 return True
         return False
@@ -60,10 +61,10 @@ def telegram_setup_wizard() -> bool:
         return questionary.confirm("Enable Telegram Remote Commander for this session?", default=True).ask()
 
 # =============================================================================
-# CORE SERVER ENGINE (The Pulse & Eternal Loop Architecture)
+# CORE SERVER ENGINE (Lifespan & Heartbeat Architecture)
 # =============================================================================
 
-# Silence uvicorn background noise
+# Suppress internal noise logs
 logging.getLogger("uvicorn.error").setLevel(logging.CRITICAL)
 logging.getLogger("uvicorn.access").setLevel(logging.CRITICAL)
 
@@ -72,13 +73,12 @@ sse = SseServerTransport("/messages")
 
 async def keep_alive_pulse():
     """
-    THE HEARTBEAT ENGINE: Sends SSE comments every 15 seconds.
-    Ensures the 'Eternal Watcher' loop in server.py stays connected to Qwen Desktop
-    without timing out during long periods of AI inactivity.
+    THE HEARTBEAT ENGINE: Maintains the SSE connection during long AI idle periods.
+    Sends a silent comment (:) every 15 seconds to prevent network timeouts.
+    Essential for v8.0 Eternal Watcher stability.
     """
     while True:
         try:
-            # Send an SSE comment (:) to keep the TCP socket active
             if hasattr(sse, "_stream") and sse._stream:
                 await sse._stream.send(":\n\n")
             await asyncio.sleep(15)
@@ -90,41 +90,44 @@ async def keep_alive_pulse():
 @asynccontextmanager
 async def server_lifespan(app: Starlette):
     """
-    MISSION LIFECYCLE: Manages background tasks for Telegram and Heartbeat.
-    Guarantees all components run in the same event loop to prevent crashes.
+    SERVER LIFECYCLE MANAGER: Synchronizes background tasks within the Uvicorn loop.
+    Ensures that Telegram Bot and Heartbeat Pulse run concurrently without conflicts.
     """
-    # 1. Start the Heartbeat Pulse
+    # 1. Start the Immortal Heartbeat
     pulse_task = asyncio.create_task(keep_alive_pulse())
 
-    # 2. Start Telegram Remote Commander
+    # 2. Start the Telegram Gateway if enabled
     if config.TELEGRAM_ENABLED:
         asyncio.create_task(RemoteCommander.start_bot())
     
-    # Ready confirmation
+    # Ready Signal
     db.status_board()
-    db.log("SERVER", f"Engine v7.1 ({config.CODENAME}) is officially SHIELDED.")
+    db.log("SERVER", f"Engine v8.0 ({config.CODENAME}) is officially SHIELDED.")
     
-    yield # App execution happens here
+    yield # Execution occurs while yielded
     
-    # 3. Graceful Shutdown
+    # 3. Graceful Shutdown sequence
     pulse_task.cancel()
-    db.log("SERVER", "Shield deactivated. Bridge offline.")
+    db.log("SERVER", "Shield deactivated. System offline.")
 
 async def sse_endpoint(request):
-    """Handles persistent SSE connections for AI handshakes."""
+    """Handles persistent SSE connections for local AI clients (Qwen Desktop)."""
     try:
         async with sse.connect_sse(request.scope, request.receive, request._send) as (r, w):
-            db.log("SUCCESS", "Local AI bridge established.")
+            db.log("SUCCESS", "Local AI bridge connection established.")
             await server.run(r, w, server.create_initialization_options())
     except Exception:
         pass
 
 async def messages_endpoint(request):
-    """Handles RPC messages and ensures 202 status for the client."""
-    await sse.handle_post_message(request.scope, request.receive, request._send)
-    return Response(status_code=202)
+    """Handles JSON-RPC POST messages and returns a proper 202 status."""
+    try:
+        await sse.handle_post_message(request.scope, request.receive, request._send)
+        return Response(status_code=202)
+    except Exception:
+        return Response(status_code=500)
 
-# Create the Starlette App with Lifespan support
+# Initialize Starlette application with Lifespan support
 app = Starlette(
     routes=[
         Route("/sse", sse_endpoint, methods=["GET"]),
@@ -135,13 +138,13 @@ app = Starlette(
 
 if __name__ == "__main__":
     try:
-        # 1. Interactive CLI (Synchronous sequence)
+        # 1. Boot up Interactive UI sequence (Pure Synchronous)
         db.header()
         config.TELEGRAM_ENABLED = telegram_setup_wizard()
         config.SELECTED_MODE = db.select_mode()
-        config.refresh_env()
+        config.refresh_env() # Lock in final pathing configuration
         
-        # 2. Hand over to Uvicorn for Loop Management
+        # 2. Hand over event loop control to Uvicorn with High-Persistence parameters
         uvicorn.run(
             app, 
             host="127.0.0.1", 
@@ -153,7 +156,7 @@ if __name__ == "__main__":
         
     except KeyboardInterrupt:
         print("\n")
-        db.log("SERVER", "Manual override detected. Closing connection...")
+        db.log("SERVER", "Manual shutdown detected. Closing session safely. Goodbye!")
         sys.exit(0)
     except Exception as e:
         print(f"Critical Startup Failure: {e}")

@@ -2,6 +2,7 @@ import uvicorn
 import logging
 import sys
 import os
+import asyncio
 import questionary
 from contextlib import asynccontextmanager
 from starlette.applications import Starlette
@@ -15,13 +16,13 @@ from src.ui.dashboard import Dashboard as db
 from src.tools.remote_ops import RemoteCommander
 
 # =============================================================================
-# AUTO-ONBOARDING WIZARD (Synchronous & Safe)
+# AUTO-ONBOARDING WIZARD (Synchronous Logic)
 # =============================================================================
 
 def update_env_file(key: str, value: str):
     """Writes or updates configuration in the local .env file."""
     env_path = ".env"
-    lines =[]
+    lines = []
     if os.path.exists(env_path):
         with open(env_path, "r") as f:
             lines = f.readlines()
@@ -40,9 +41,8 @@ def update_env_file(key: str, value: str):
         f.writelines(lines)
 
 def telegram_setup_wizard() -> bool:
-    """CLI wizard to configure Telegram. Runs BEFORE the async loop starts."""
+    """Configures Telegram Remote Gateway before the async loop starts."""
     if not config.TELEGRAM_TOKEN or not config.AUTHORIZED_CHAT_ID:
-        # Using synchronous .ask() to avoid loop conflicts
         setup_now = questionary.confirm("Telegram Remote Control is not configured. Setup now?", default=False).ask()
         
         if setup_now:
@@ -53,56 +53,78 @@ def telegram_setup_wizard() -> bool:
                 update_env_file("TELEGRAM_TOKEN", token)
                 update_env_file("AUTHORIZED_CHAT_ID", chat_id)
                 config.refresh_env()
-                db.log("SUCCESS", "Remote credentials saved and activated.")
+                db.log("SUCCESS", "Remote credentials secured and activated.")
                 return True
         return False
     else:
         return questionary.confirm("Enable Telegram Remote Commander for this session?", default=True).ask()
 
 # =============================================================================
-# CORE SERVER ENGINE (The Lifespan Architecture)
+# CORE SERVER ENGINE (The Pulse & Eternal Loop Architecture)
 # =============================================================================
 
+# Silence uvicorn background noise
 logging.getLogger("uvicorn.error").setLevel(logging.CRITICAL)
 logging.getLogger("uvicorn.access").setLevel(logging.CRITICAL)
 
+# Global SSE Transport instance
 sse = SseServerTransport("/messages")
+
+async def keep_alive_pulse():
+    """
+    THE HEARTBEAT ENGINE: Sends SSE comments every 15 seconds.
+    Ensures the 'Eternal Watcher' loop in server.py stays connected to Qwen Desktop
+    without timing out during long periods of AI inactivity.
+    """
+    while True:
+        try:
+            # Send an SSE comment (:) to keep the TCP socket active
+            if hasattr(sse, "_stream") and sse._stream:
+                await sse._stream.send(":\n\n")
+            await asyncio.sleep(15)
+        except asyncio.CancelledError:
+            break
+        except Exception:
+            await asyncio.sleep(5)
 
 @asynccontextmanager
 async def server_lifespan(app: Starlette):
     """
-    THE MAGIC FIX: This runs exactly when Uvicorn takes over the event loop.
-    It guarantees the Telegram Bot starts in the SAME loop without conflicts.
+    MISSION LIFECYCLE: Manages background tasks for Telegram and Heartbeat.
+    Guarantees all components run in the same event loop to prevent crashes.
     """
+    # 1. Start the Heartbeat Pulse
+    pulse_task = asyncio.create_task(keep_alive_pulse())
+
+    # 2. Start Telegram Remote Commander
     if config.TELEGRAM_ENABLED:
-        import asyncio
-        # Start Telegram Bot as a background task in the Uvicorn loop
         asyncio.create_task(RemoteCommander.start_bot())
     
-    # Display the final status board once the server is fully ready
+    # Ready confirmation
     db.status_board()
-    db.log("SERVER", f"Engine v7.0 ({config.CODENAME}) is officially online.")
+    db.log("SERVER", f"Engine v7.1 ({config.CODENAME}) is officially SHIELDED.")
     
-    yield # The Server runs here
+    yield # App execution happens here
     
-    # Shutdown logic
-    db.log("SERVER", "Shutting down Bridge components...")
+    # 3. Graceful Shutdown
+    pulse_task.cancel()
+    db.log("SERVER", "Shield deactivated. Bridge offline.")
 
 async def sse_endpoint(request):
-    """Handles persistent SSE connections."""
+    """Handles persistent SSE connections for AI handshakes."""
     try:
         async with sse.connect_sse(request.scope, request.receive, request._send) as (r, w):
-            db.log("SUCCESS", "Local AI bridge connection established.")
+            db.log("SUCCESS", "Local AI bridge established.")
             await server.run(r, w, server.create_initialization_options())
     except Exception:
         pass
 
 async def messages_endpoint(request):
-    """Handles JSON-RPC POST messages safely."""
+    """Handles RPC messages and ensures 202 status for the client."""
     await sse.handle_post_message(request.scope, request.receive, request._send)
     return Response(status_code=202)
 
-# Apply the lifespan manager to the Starlette app
+# Create the Starlette App with Lifespan support
 app = Starlette(
     routes=[
         Route("/sse", sse_endpoint, methods=["GET"]),
@@ -113,25 +135,25 @@ app = Starlette(
 
 if __name__ == "__main__":
     try:
-        # 1. Run the interactive UI (100% Synchronous, no loop conflicts)
+        # 1. Interactive CLI (Synchronous sequence)
         db.header()
         config.TELEGRAM_ENABLED = telegram_setup_wizard()
         config.SELECTED_MODE = db.select_mode()
         config.refresh_env()
         
-        # 2. Hand over control to Uvicorn (It creates its own perfect loop)
+        # 2. Hand over to Uvicorn for Loop Management
         uvicorn.run(
             app, 
             host="127.0.0.1", 
             port=8000, 
             access_log=False, 
             log_level="critical",
-            timeout_keep_alive=36000 # 10-Hour persistence
+            timeout_keep_alive=36000 # 10-Hour persistence layer
         )
         
     except KeyboardInterrupt:
         print("\n")
-        db.log("SERVER", "Manual override detected. Bridge offline. Goodbye!")
+        db.log("SERVER", "Manual override detected. Closing connection...")
         sys.exit(0)
     except Exception as e:
         print(f"Critical Startup Failure: {e}")

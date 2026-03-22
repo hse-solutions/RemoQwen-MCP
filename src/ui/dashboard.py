@@ -33,7 +33,6 @@ class Dashboard:
         
         banner_text = Text()
         banner_text.append(ascii_art, style="bold cyan")
-        # Fixed: Using v7.1 metadata from config
         banner_text.append(f"\n      [{config.VERSION}] - {config.CODENAME}\n", style="italic magenta")
         banner_text.append("   " + "─" * 50, style="dim white")
         
@@ -83,7 +82,6 @@ class Dashboard:
     def log(category: str, message: str, style: str = "white"):
         """
         Unified Icon-based professional logging for local and remote actions.
-        Categories automatically map to high-visibility icons for real-time monitoring.
         """
         time_str = datetime.now().strftime("%H:%M:%S")
         
@@ -105,21 +103,11 @@ class Dashboard:
         }
         
         icon = icons.get(category, f"[{category}]")
-        
-        # Color mapping for maximum clarity
         cat_styles = {
-            "PREDATOR": "bold yellow",
-            "TARGET":   "bold cyan",
-            "STRIKE":   "bold bright_red",
-            "REMOTE":   "bold magenta",
-            "EXEC":     "bold yellow",
-            "SUCCESS":  "bold green",
-            "ERROR":    "bold red",
-            "MEMORY":   "bold magenta",
-            "SERVER":   "bold blue",
-            "GUARD":    "bold orange3",
-            "FETCH":    "bold green",
-            "CLEAN":    "bold red"
+            "PREDATOR": "bold yellow", "TARGET": "bold cyan", "STRIKE": "bold bright_red",
+            "REMOTE": "bold magenta", "EXEC": "bold yellow", "SUCCESS": "bold green",
+            "ERROR": "bold red", "MEMORY": "bold magenta", "SERVER": "bold blue",
+            "GUARD": "bold orange3", "FETCH": "bold green", "CLEAN": "bold red"
         }
         
         log_style = cat_styles.get(category, "white")
@@ -132,40 +120,29 @@ class Dashboard:
 
     @staticmethod
     def show_hunt_progress(point: int, total: int, frame: int, status: str):
-        """Visualizes the Sentinel Lion's progress in real-time."""
         color = "green" if status == "PASSED" else "red"
         icon = "✅" if status == "PASSED" else "❌"
         console.print(f"   [dim]Target {point}/{total}:[/dim] [bold white]Frame {frame:04}[/bold white] -> [{color}]{status} {icon}[/{color}]")
 
     @staticmethod
     async def ask_permission(tool_name: str, target: str) -> bool:
-        """
-        ASYNC PERMISSION GATE: Syncs with both Terminal and Telegram (Hybrid).
-        Uses non-blocking prompts to keep the heartbeat alive.
-        """
+        """ASYNC PERMISSION GATE: Prevents event loop blocking."""
         request_text = Text.assemble(
             ("System is requesting permission to use ", "white"),
             (f"'{tool_name}'", "bold yellow"),
             ("\nTarget Resource: ", "white"),
             (f"{target}", "bold cyan")
         )
-        
         console.print("\n")
-        console.print(Panel(
-            request_text, 
-            title="[bold yellow]PENDING AUTHORIZATION[/bold yellow]", 
-            border_style="yellow"
-        ))
+        console.print(Panel(request_text, title="[bold yellow]PENDING AUTHORIZATION[/bold yellow]", border_style="yellow"))
         
-        # Async confirmation using questionary
-        response = await questionary.confirm(
-            f"Authorize {tool_name} locally?", 
-            default=False
-        ).ask_async()
-        
+        response = await questionary.confirm(f"Authorize {tool_name} locally?", default=False).ask_async()
         if response:
             Dashboard.log("SUCCESS", f"Action authorized by USER.")
         else:
             Dashboard.log("ERROR", f"Action rejected locally.")
-            
         return response
+
+# 🛡️ THE CRITICAL SYNC FIX: 
+# This allows other files to import 'db' directly from this module.
+db = Dashboard

@@ -13,16 +13,16 @@ console = Console()
 
 class Dashboard:
     """
-    v7.1 ASSET COMMANDER: The ultimate interactive mission control.
+    v8.0 ASSET COMMANDER: The ultimate interactive mission control.
     Features: ASCII Branding, Hybrid Log Sync, and Remote Asset Monitoring.
     """
     
     @staticmethod
     def header():
-        """Displays the massive v7.1 ASCII Branding Banner."""
+        """Displays the massive v8.0 ASCII Branding Banner."""
         console.clear()
         
-        # High-Impact ASCII Branding for v7.1
+        # High-Impact ASCII Branding for v8.0
         ascii_art = r"""
   ____                      ___                       
  |  _ \ ___ _ __ ___   ___ / _ \__      _____ _ __  

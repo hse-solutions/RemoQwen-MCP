@@ -61,7 +61,7 @@ class Dashboard:
 
     @staticmethod
     def status_board():
-        """Displays the mission control radar with v7.1 Hybrid connectivity status."""
+        """Displays the mission control radar with v8.0 Hybrid connectivity status."""
         tg_status = "[bold green]ENABLED ✅[/bold green]" if config.TELEGRAM_ENABLED else "[bold red]DISABLED ❌[/bold red]"
         
         status_text = Text.assemble(
@@ -73,7 +73,7 @@ class Dashboard:
         
         console.print(Panel(
             status_text, 
-            title="[bold magenta]MISSION CONTROL RADAR v7.1[/bold magenta]", 
+            title="[bold magenta]MISSION CONTROL RADAR v8.0[/bold magenta]", 
             border_style="magenta", 
             expand=False
         ))

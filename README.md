@@ -1,3 +1,4 @@
+```markdown
 # 🦁 RemoQwen-MCP v8.0 • ETERNAL WATCHER
 
 **✅ 100% FREE & OPEN SOURCE**  
@@ -28,7 +29,8 @@ You can send tasks from your phone via Telegram, close the laptop, and the AI wi
 - ❤️ **Immortal SSE Connection** – Heartbeat + 10-hour keep-alive  
 - 🎥 **Cinematic Dashboard** – Rich terminal with beautiful logs & icons  
 - 🌍 **Zero Cloud Dependency** – 100% local (Qwen Desktop + MCP server)  
-- 🧠 **Persistent Memory • Asset Downloader • Secure Shell Jail**
+- 🧠 **Persistent Memory • Asset Downloader • Secure Shell Jail**  
+- 📂 **Asset Management via Telegram** – Add images to `public/` folder with custom names, list, and delete assets remotely
 
 ---
 
@@ -107,6 +109,31 @@ You can send tasks from your phone via Telegram, close the laptop, and the AI wi
 3. Paste both in `.env` file (as shown above)
 4. Restart `python run.py`
 5. Now send any message to your bot → AI starts working instantly!
+
+---
+
+## 📱 Telegram Commands & Remote Control
+
+Once your bot is running, you can control everything from Telegram. Send `/help` to see the available commands:
+
+```
+🚀 REMOTE COMMANDER v7.1
+
+💬 Send Text - Starts a new mission
+🛑 Send 'STOP' - Terminates the AI loop
+🖼️ Image + Caption - Saves asset with custom name
+📊 /assets - List project assets
+🗑️ /delete name - Remove an asset
+📡 /status - Check system radar
+```
+
+### How to use asset commands:
+
+- **Add an asset** – Send an image **with a caption**. The caption will be used as the filename (e.g., `logo.png`). The image is saved inside your Remotion project's `public/` folder, ready to be used in your compositions.
+- **List assets** – Type `/assets` to see all files currently in the `public/` folder.
+- **Delete an asset** – Type `/delete filename` (e.g., `/delete logo.png`) to remove it from the folder.
+
+These commands let you manage visual assets completely from your phone, without touching the terminal.
 
 ---
 

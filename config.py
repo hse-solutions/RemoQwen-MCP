@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 
-# Initial load of environment variables from .env
+# Load local environment variables from .env
 load_dotenv()
 
 # =============================================================================
@@ -10,10 +10,10 @@ load_dotenv()
 APP_NAME = "RemoQwen-MCP"
 VERSION = "v7.0"
 CODENAME = "REMOTE COMMANDER"
-THEME_COLOR = "magenta" # Fixed: Standard color for maximum library compatibility
+THEME_COLOR = "magenta" # Standard color for high compatibility
 
 # =============================================================================
-# OPERATION MODES DEFINITION
+# OPERATIONAL MODES
 # =============================================================================
 MODE_FULLY_AUTO = "Fully Autonomous (Speedster)"
 MODE_BALANCED = "Guarded Network (Professional)"
@@ -22,13 +22,13 @@ MODE_STRICT = "Strict Manual (Architect)"
 SELECTED_MODE = MODE_BALANCED 
 
 # =============================================================================
-# TELEGRAM REMOTE ORCHESTRATION (Dynamic State)
+# TELEGRAM REMOTE GATEWAY SETTINGS
 # =============================================================================
 TELEGRAM_ENABLED = False
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 AUTHORIZED_CHAT_ID = os.getenv("AUTHORIZED_CHAT_ID")
 
-# These will be initialized properly in the refresh_env() call below
+# Core Paths - Initialized as empty, populated by refresh_env()
 PROJECT_ROOT = ""
 SRC_DIR = ""
 PUBLIC_DIR = ""
@@ -38,47 +38,45 @@ REMOTE_TASK_FILE = ""
 
 def refresh_env():
     """
-    DYNAMIC RELOADER: Re-reads .env and synchronizes all project paths.
-    Ensures that REMOTE_TASK_FILE always points to the correct 'src' folder 
-    defined in the user's REMOTION_PROJECT_PATH.
+    DYNAMIC RELOADER: Synchronizes all project paths with the .env file.
+    Ensures that file operations and asset ingestion always hit the 
+    correct directories even if settings change mid-session.
     """
     global TELEGRAM_TOKEN, AUTHORIZED_CHAT_ID, PROJECT_ROOT, SRC_DIR, \
            PUBLIC_DIR, SKILLS_DIR, MEMORY_FILE, REMOTE_TASK_FILE
     
     load_dotenv(override=True)
     
-    # Update Credentials
+    # Reload Credentials
     TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
     AUTHORIZED_CHAT_ID = os.getenv("AUTHORIZED_CHAT_ID")
     
-    # 🛡️ THE PATH FIX: Get the absolute root from .env correctly
+    # Resolve the absolute path to the Remotion Project
     PROJECT_ROOT = os.path.normpath(
         os.getenv("REMOTION_PROJECT_PATH", 
         os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "my-video")))
     )
     
-    # Initialize all sub-paths relative to the validated PROJECT_ROOT
+    # Synchronize sub-directories
     SRC_DIR = os.path.join(PROJECT_ROOT, "src")
     PUBLIC_DIR = os.path.join(PROJECT_ROOT, "public")
     SKILLS_DIR = os.path.join(PROJECT_ROOT, ".qwen", "skills", "remotion-best-practices")
     MEMORY_FILE = os.path.join(PROJECT_ROOT, "memory.md")
     
-    # Ensure remote tasks are written into the actual project's src folder
+    # Task bridge file for Telegram->AI communication
     REMOTE_TASK_FILE = os.path.join(SRC_DIR, "remote_task.md")
 
-# Run an immediate refresh to lock paths on startup
+# Run an immediate sync on startup
 refresh_env()
 
 # =============================================================================
-# SHELL & COMMAND SECURITY CONFIGURATION
+# SHELL SECURITY & LOGIC GUARD
 # =============================================================================
 ALLOWED_COMMANDS = ["npm", "npx", "node", "remotion"]
-COMMAND_TIMEOUT = 300 
+COMMAND_TIMEOUT = 600  # 10 Minutes for heavy video rendering tasks
 PREVIEW_SCAN_DURATION = 15 
 
-# =============================================================================
-# SENTINEL LION: ERROR HUNTING SETTINGS (v6.0 Predator Logic)
-# =============================================================================
+# Sentinel Lion Hunting Parameters
 DEEP_SCAN_POINTS = 5
 REMOTION_LOG_LEVEL = "--log=verbose"
 ERROR_KEYWORDS = [
@@ -88,17 +86,20 @@ ERROR_KEYWORDS = [
 ]
 
 # =============================================================================
-# SECURITY JAIL & PATH VALIDATION
+# SECURITY JAIL & VALIDATION
 # =============================================================================
 def validate_path(relative_path: str) -> str:
-    """Strictly ensures the AI stays inside the user's PROJECT_ROOT."""
+    """
+    Path Guard: Strictly ensures the AI cannot access files outside PROJECT_ROOT.
+    Essential for secure autonomous operation.
+    """
     try:
         absolute_path = os.path.abspath(os.path.join(PROJECT_ROOT, relative_path))
         if os.path.commonpath([absolute_path, PROJECT_ROOT]) == PROJECT_ROOT:
             return absolute_path
         raise PermissionError(f"Security Violation: Access denied to {relative_path}")
     except Exception:
-        raise PermissionError(f"Security Violation: Path validation failed.")
+        raise PermissionError("Path validation failed. Access denied.")
 
-# Check if environment is ready
+# Environmental readiness check
 PROJECT_EXISTS = os.path.exists(PROJECT_ROOT)

@@ -8,21 +8,21 @@ from rich.align import Align
 from datetime import datetime
 import config
 
-# Initialize Rich Console for High-End Terminal UI
+# Initialize Rich Console for High-End Cinematic UI
 console = Console()
 
 class Dashboard:
     """
-    v7.0 REMOTE COMMANDER: The Ultimate Autonomous Dashboard.
-    Features: Massive ASCII Branding, Mode-Aware Selection, and Async Permission Gates.
+    v7.1 ASSET COMMANDER: The ultimate interactive mission control.
+    Features: ASCII Branding, Hybrid Log Sync, and Remote Asset Monitoring.
     """
     
     @staticmethod
     def header():
-        """Displays the high-impact ASCII Branding Banner for RemoQwen-MCP."""
+        """Displays the massive v7.1 ASCII Branding Banner."""
         console.clear()
         
-        # Unique Brand Identity for v7.0
+        # High-Impact ASCII Branding for v7.1
         ascii_art = r"""
   ____                      ___                       
  |  _ \ ___ _ __ ___   ___ / _ \__      _____ _ __  
@@ -33,22 +33,18 @@ class Dashboard:
         
         banner_text = Text()
         banner_text.append(ascii_art, style="bold cyan")
+        # Fixed: Using v7.1 metadata from config
         banner_text.append(f"\n      [{config.VERSION}] - {config.CODENAME}\n", style="italic magenta")
         banner_text.append("   " + "─" * 50, style="dim white")
         
         console.print(Align.center(banner_text))
-        # Unique Developer Tagging
         console.print(Align.center(f"[bold white]Developed by [/][bold magenta]HIRUNA[/][bold white] | [dim white]Autonomous AI Video Engineer[/dim white]\n"))
 
     @staticmethod
     def select_mode() -> str:
-        """
-        Interactive Mode Selection. 
-        Runs synchronously at startup to lock the operational state.
-        """
+        """Interactive selection for Operational Intensity."""
         console.print("[bold white]▶ SYSTEM ACCESS GRANTED. SELECT OPERATIONAL INTENSITY:[/bold white]")
         
-        # Uses questionary for a smooth arrow-key selection experience
         choice = questionary.select(
             "",
             choices=[
@@ -66,19 +62,19 @@ class Dashboard:
 
     @staticmethod
     def status_board():
-        """Displays the mission control radar with hybrid connectivity status."""
+        """Displays the mission control radar with v7.1 Hybrid connectivity status."""
         tg_status = "[bold green]ENABLED ✅[/bold green]" if config.TELEGRAM_ENABLED else "[bold red]DISABLED ❌[/bold red]"
         
         status_text = Text.assemble(
             ("CORE STATUS:   ", "white"), ("IMMORTAL ONLINE\n", "bold green"),
             ("INTENSITY:     ", "white"), (f"{config.SELECTED_MODE}\n", "bold yellow"),
-            ("TELEGRAM GW:   ", "white"), (f"{tg_status}\n", "white"),
+            ("REMOTE GW:     ", "white"), (f"{tg_status}\n", "white"),
             ("LOCAL SSE:     ", "white"), ("http://127.0.0.1:8000/sse", "bold cyan underline")
         )
         
         console.print(Panel(
             status_text, 
-            title="[bold magenta]MISSION CONTROL RADAR[/bold magenta]", 
+            title="[bold magenta]MISSION CONTROL RADAR v7.1[/bold magenta]", 
             border_style="magenta", 
             expand=False
         ))
@@ -87,7 +83,7 @@ class Dashboard:
     def log(category: str, message: str, style: str = "white"):
         """
         Unified Icon-based professional logging for local and remote actions.
-        Categories automatically map to high-visibility icons.
+        Categories automatically map to high-visibility icons for real-time monitoring.
         """
         time_str = datetime.now().strftime("%H:%M:%S")
         
@@ -99,6 +95,8 @@ class Dashboard:
             "EXEC":     "⚡ [EXEC]    ",
             "READ":     "📖 [READ]    ",
             "WRITE":    "✍️ [WRITE]   ",
+            "FETCH":    "📥 [FETCH]   ",
+            "CLEAN":    "🗑️ [CLEAN]   ",
             "SUCCESS":  "✅ [SUCCESS] ",
             "ERROR":    "⚠️ [CRASH]   ",
             "MEMORY":   "💾 [EVOLVE]  ",
@@ -108,7 +106,7 @@ class Dashboard:
         
         icon = icons.get(category, f"[{category}]")
         
-        # Professional Color Palette mapping
+        # Color mapping for maximum clarity
         cat_styles = {
             "PREDATOR": "bold yellow",
             "TARGET":   "bold cyan",
@@ -119,7 +117,9 @@ class Dashboard:
             "ERROR":    "bold red",
             "MEMORY":   "bold magenta",
             "SERVER":   "bold blue",
-            "GUARD":    "bold orange3"
+            "GUARD":    "bold orange3",
+            "FETCH":    "bold green",
+            "CLEAN":    "bold red"
         }
         
         log_style = cat_styles.get(category, "white")
@@ -132,7 +132,7 @@ class Dashboard:
 
     @staticmethod
     def show_hunt_progress(point: int, total: int, frame: int, status: str):
-        """Visualizes the Sentinel Lion's hunt progress in real-time."""
+        """Visualizes the Sentinel Lion's progress in real-time."""
         color = "green" if status == "PASSED" else "red"
         icon = "✅" if status == "PASSED" else "❌"
         console.print(f"   [dim]Target {point}/{total}:[/dim] [bold white]Frame {frame:04}[/bold white] -> [{color}]{status} {icon}[/{color}]")
@@ -140,9 +140,8 @@ class Dashboard:
     @staticmethod
     async def ask_permission(tool_name: str, target: str) -> bool:
         """
-        ASYNC PERMISSION GATE: Prevents event loop blocking.
-        Uses questionary.ask_async() to keep the background heartbeat alive 
-        while waiting for human input.
+        ASYNC PERMISSION GATE: Syncs with both Terminal and Telegram (Hybrid).
+        Uses non-blocking prompts to keep the heartbeat alive.
         """
         request_text = Text.assemble(
             ("System is requesting permission to use ", "white"),
@@ -158,7 +157,7 @@ class Dashboard:
             border_style="yellow"
         ))
         
-        # FIXED: Non-blocking async prompt
+        # Async confirmation using questionary
         response = await questionary.confirm(
             f"Authorize {tool_name} locally?", 
             default=False

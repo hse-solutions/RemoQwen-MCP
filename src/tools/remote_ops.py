@@ -7,13 +7,14 @@ from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQu
 import config
 from src.ui.dashboard import Dashboard as db
 
-# Initialize internal logging
+# Initialize bridge logger
 logger = logging.getLogger("remotion_bridge")
 
 class RemoteCommander:
     """
-    v7.0 REMOTE COMMANDER: Ultimate Gateway with Asset Ingestion.
-    Features: Silent Task Sync, Hybrid Permissions, and Remote Public Asset Sync.
+    v7.1 ASSET COMMANDER: Advanced Remote Orchestration.
+    Features: Smart Asset Naming, Remote File Management (/assets, /delete),
+    and Real-time Terminal Sync.
     """
     _app: Application = None
     _permission_event = asyncio.Event()
@@ -21,11 +22,11 @@ class RemoteCommander:
 
     @classmethod
     async def start_bot(cls):
-        """Initializes the Telegram bot and registers media sniffers."""
+        """Initializes the Telegram bot and registers advanced command handlers."""
         if not config.TELEGRAM_ENABLED or not config.TELEGRAM_TOKEN:
             return
 
-        db.log("SERVER", "Booting Remote Commander with Media Support...")
+        db.log("SERVER", "Booting Asset Commander Gateway...")
         
         try:
             cls._app = Application.builder().token(config.TELEGRAM_TOKEN).build()
@@ -34,26 +35,29 @@ class RemoteCommander:
             cls._app.add_handler(CommandHandler("start", cls._cmd_start))
             cls._app.add_handler(CommandHandler("help", cls._cmd_help))
             cls._app.add_handler(CommandHandler("status", cls._cmd_status))
+            cls._app.add_handler(CommandHandler("assets", cls._cmd_assets)) # NEW v7.1
+            cls._app.add_handler(CommandHandler("delete", cls._cmd_delete)) # NEW v7.1
+            
             cls._app.add_handler(CallbackQueryHandler(cls._handle_permission_callback))
 
-            # NEW: Media Handlers (Photos and Documents)
+            # Media Handlers for Smart Naming
             cls._app.add_handler(MessageHandler(
                 (filters.PHOTO | filters.Document.ALL) & ~filters.COMMAND, 
                 cls._handle_media_upload
             ))
 
-            # Existing Text Prompt Handler
+            # Text Prompt Handler
             cls._app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, cls._handle_remote_prompt))
 
             await cls._app.initialize()
             await cls._app.start()
             await cls._app.updater.start_polling(drop_pending_updates=True)
             
-            db.log("SUCCESS", "Remote Gateway is fully armed and synced.")
+            db.log("SUCCESS", "Asset Commander is fully linked.")
             
             await cls._app.bot.send_message(
                 chat_id=config.AUTHORIZED_CHAT_ID,
-                text="🦁 *SENTINEL LION ONLINE*\nI can now receive images and logos directly from your phone.",
+                text="🦁 *ASSET COMMANDER ONLINE*\nReady to manage your project assets remotely.",
                 parse_mode="Markdown"
             )
 
@@ -63,11 +67,18 @@ class RemoteCommander:
     @staticmethod
     async def _cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if str(update.effective_user.id) != str(config.AUTHORIZED_CHAT_ID): return
-        await update.message.reply_text(f"👋 Boss, I'm ready!\nSend me text for a mission or an image for your public folder.")
+        await update.message.reply_text(f"👋 Greetings HIRUNA!\nUse /help to see Asset Commander features.")
 
     @staticmethod
     async def _cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        help_msg = "🚀 *REMOTE MANUAL*\n\n💬 *Just Text* - Injects a task\n🖼️ *Send Image* - Saves to public folder\n📊 /status - Real-time radar"
+        help_msg = (
+            "🚀 *REMOTE COMMANDER v7.1*\n\n"
+            "💬 *Send Text* - Injects a task\n"
+            "🖼️ *Send Image + Caption* - Saves asset with custom name\n"
+            "📊 /assets - List all public assets\n"
+            "🗑️ /delete [filename] - Delete specific asset\n"
+            "📡 /status - Check PC terminal status"
+        )
         await update.message.reply_markdown(help_msg)
 
     @staticmethod
@@ -78,66 +89,114 @@ class RemoteCommander:
             "───────────────────\n"
             f"✅ *State:* Immortal Online\n"
             f"⚙️ *Mode:* {config.SELECTED_MODE}\n"
-            f"📍 *Project:* `{os.path.basename(config.PROJECT_ROOT)}`"
+            f"📂 *Target:* `{os.path.basename(config.PROJECT_ROOT)}`"
         )
         await update.message.reply_markdown(status_card)
+
+    @staticmethod
+    async def _cmd_assets(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Lists files in the public directory with emojis."""
+        if str(update.effective_user.id) != str(config.AUTHORIZED_CHAT_ID): return
+        
+        try:
+            files = os.listdir(config.PUBLIC_DIR)
+            if not files:
+                await update.message.reply_text("📂 The public folder is empty.")
+                return
+
+            list_msg = "📂 *PROJECT ASSETS*\n───────────────────\n"
+            for f in files:
+                emoji = "🖼️" if f.lower().endswith(('.png', '.jpg', '.jpeg', '.svg')) else "📄"
+                size = os.path.getsize(os.path.join(config.PUBLIC_DIR, f)) / 1024
+                list_msg += f"{emoji} `{f}` ({size:.1f} KB)\n"
+            
+            await update.message.reply_markdown(list_msg)
+        except Exception as e:
+            await update.message.reply_text(f"❌ Failed to list assets: {e}")
+
+    @staticmethod
+    async def _cmd_delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Prepares deletion request with confirmation buttons."""
+        if str(update.effective_user.id) != str(config.AUTHORIZED_CHAT_ID): return
+        
+        if not context.args:
+            await update.message.reply_text("❓ Please provide a filename. Example: /delete logo.png")
+            return
+
+        filename = context.args[0]
+        file_path = os.path.join(config.PUBLIC_DIR, filename)
+
+        if not os.path.exists(file_path):
+            await update.message.reply_text(f"🚫 File `{filename}` not found in public folder.")
+            return
+
+        keyboard = [[
+            InlineKeyboardButton("🗑️ YES, DELETE", callback_data=f"del_yes:{filename}"),
+            InlineKeyboardButton("❌ NO, CANCEL", callback_data="del_no")
+        ]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        await update.message.reply_text(
+            f"🛡️ *CONFIRM DELETION*\n\nAre you sure you want to delete `{filename}`?",
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
 
     @classmethod
     async def _handle_media_upload(cls, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
-        ATOMIC ASSET SYNC: Captures images/documents and saves to public folder.
-        Informs the AI of the new asset automatically.
+        SMART ASSET SYNC: Supports user-provided captions for custom naming.
         """
         if str(update.effective_user.id) != str(config.AUTHORIZED_CHAT_ID): return
         
         message = update.message
-        db.log("REMOTE", "Receiving media asset from phone...")
+        caption = message.caption
+        db.log("REMOTE", "Capturing high-resolution media...")
 
         try:
-            # 1. Determine file details
             if message.photo:
-                # Get the highest resolution version
                 media_file = await message.photo[-1].get_file()
-                filename = f"telegram_asset_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+                # If caption is provided with extension, use it. Else generate timestamped name.
+                if caption and '.' in caption:
+                    filename = config.sanitize_filename(caption)
+                else:
+                    filename = f"asset_{datetime.now().strftime('%H%M%S')}.jpg"
             else:
-                # Handle as a document (keeps original name)
                 media_file = await message.document.get_file()
-                filename = message.document.file_name
+                # Document keeps its original name unless caption is provided
+                filename = config.sanitize_filename(caption) if caption else message.document.file_name
 
-            # 2. Secure target path in public/ folder
             os.makedirs(config.PUBLIC_DIR, exist_ok=True)
             file_path = os.path.join(config.PUBLIC_DIR, filename)
 
-            # 3. Download directly to project
             await media_file.download_to_drive(file_path)
             db.log("SUCCESS", f"Remote asset synced: {filename}")
 
-            # 4. Notify AI by updating the current task file
+            # Notify AI
             with open(config.REMOTE_TASK_FILE, "a", encoding="utf-8") as f:
-                f.write(f"\n\n📎 [ASSET UPDATE]: New asset '{filename}' added to public folder. You can use it via staticFile('{filename}').")
+                f.write(f"\n\n📎 [ASSET UPDATE]: New asset '{filename}' added. You can now use staticFile('{filename}').")
 
-            await update.message.reply_text(f"📥 *ASSET SYNCED ✅*\nFile: `{filename}`\nAvailable for AI immediately.")
+            await update.message.reply_text(f"📥 *ASSET SYNCED ✅*\nFile: `{filename}`")
 
         except Exception as e:
-            db.log("ERROR", f"Asset sync failed: {str(e)}")
+            db.log("ERROR", f"Asset sync failure: {e}")
             await update.message.reply_text(f"❌ *SYNC ERROR:* {e}")
 
     @classmethod
     async def _handle_remote_prompt(cls, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Silent Task Sync (Preserved from previous version)"""
+        """Silent Task Injection Gateway."""
         if str(update.effective_user.id) != str(config.AUTHORIZED_CHAT_ID): return
         prompt = update.message.text
-        db.log("REMOTE", f"Capturing remote instruction: {prompt[:30]}...")
+        db.log("REMOTE", f"Received mission: {prompt[:30]}...")
 
         try:
             os.makedirs(os.path.dirname(config.REMOTE_TASK_FILE), exist_ok=True)
             with open(config.REMOTE_TASK_FILE, "w", encoding="utf-8") as f:
-                f.write(f"# 🚨 REMOTE MISSION RECEIVED\n\n{prompt}\n\n---\n*Source: Telegram Remote Commander*")
+                f.write(f"# 🚨 REMOTE MISSION RECEIVED\n\n{prompt}")
             
-            db.log("SUCCESS", "Remote task synchronized with AI brain.")
-            await update.message.reply_text("⚡ *TASK SYNCED ✅*\nQwen is being notified.")
+            db.log("SUCCESS", "Remote task locked in.")
+            await update.message.reply_text("⚡ *MISSION ACCEPTED ✅*")
         except Exception as e:
-            db.log("ERROR", f"Silent sync failed: {str(e)}")
             await update.message.reply_text(f"❌ *SYNC ERROR:* {e}")
 
     @classmethod
@@ -151,7 +210,7 @@ class RemoteCommander:
         if not cls._app or not config.TELEGRAM_ENABLED:
             return await db.ask_permission(tool_name, target)
 
-        db.log("GUARD", f"Awaiting remote authorization for '{tool_name}'...", style="bold magenta")
+        db.log("GUARD", f"Awaiting remote permission for '{tool_name}'...", style="bold magenta")
         keyboard = [[InlineKeyboardButton("✅ APPROVE", callback_data="perm_yes"), InlineKeyboardButton("❌ DENY", callback_data="perm_no")]]
         cls._permission_event.clear()
         msg = f"⚠️ *AUTHORIZATION REQUIRED*\n\nAI wants to: `{tool_name}`\nTarget: `{target}`"
@@ -161,14 +220,31 @@ class RemoteCommander:
 
     @classmethod
     async def _handle_permission_callback(cls, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Routes button clicks to their respective logic."""
         query = update.callback_query
         await query.answer()
-        if query.data == "perm_yes":
+        data = query.data
+
+        # 1. Handle Deletion Confirmation
+        if data.startswith("del_"):
+            if data.startswith("del_yes:"):
+                filename = data.split(":")[1]
+                try:
+                    os.remove(os.path.join(config.PUBLIC_DIR, filename))
+                    await query.edit_message_text(text=f"🗑️ *DELETED:* `{filename}` successfully removed.")
+                    db.log("CLEAN", f"Remote deletion: {filename}")
+                except Exception as e:
+                    await query.edit_message_text(text=f"❌ *ERROR:* Failed to delete {filename}: {e}")
+            else:
+                await query.edit_message_text(text="❌ *CANCELLED:* Deletion aborted.")
+            return
+
+        # 2. Handle Tool Authorization
+        if data == "perm_yes":
             cls._last_permission_result = True
             await query.edit_message_text(text="✅ *PERMISSION GRANTED*")
-            db.log("SUCCESS", "Remote approval received.")
         else:
             cls._last_permission_result = False
             await query.edit_message_text(text="❌ *PERMISSION DENIED*")
-            db.log("ERROR", "Remote rejection received.")
+        
         cls._permission_event.set()

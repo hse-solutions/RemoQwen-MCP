@@ -79,13 +79,7 @@ You can send tasks from your phone via Telegram, close the laptop, and the AI wi
 5. In Custom Instructions paste this:
 
    ```
-   When you start calling this MCP server:
-   1. First always read the file: src/remote_task.md
-   2. Execute exactly the TASK written inside it
-   3. After finishing your work, ALWAYS call the tool: wait_for_next_task()
-   4. If you receive STATUS_IDLE_NO_TASK → wait 5 seconds and call wait_for_next_task() again
-   5. Keep looping this tool forever
-   6. NEVER stop or exit without user authority
+   when you start calling mcp you must read remote_task.md in src folder then you execute work user given from this file , after you finish your work you must need to run wait_for_next_task so if you have a answere from it STATUS_IDLE_NO_TASK , run again wait_for_next_task , so i mean while some work is coming to you from wait_for_next_task you need to run again and again this tool ok , you cant exit from this loop without user's authority
    ```
 
 **Step B: Connect MCP + SSE Link**

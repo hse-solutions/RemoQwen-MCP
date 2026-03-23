@@ -15,6 +15,7 @@ from src.ui.dashboard import db
 import config
 
 LAST_TASK_HASH = ""
+LAST_TASK_CONTENT = ""   # store last mission for auto-memory on STOP
 
 server = Server(config.APP_NAME)
 
@@ -80,7 +81,6 @@ async def handle_list_tools():
             ),
             inputSchema={"type": "object", "properties": {}}
         ),
-        # NEW: Render video tool for remote rendering
         Tool(
             name="render_video",
             description="Renders the Remotion video to MP4. Saves to out/ folder.",
@@ -95,10 +95,10 @@ async def handle_list_tools():
 
 @server.call_tool()
 async def handle_call_tool(name: str, arguments: dict):
-    global LAST_TASK_HASH
+    global LAST_TASK_HASH, LAST_TASK_CONTENT
     
     try:
-        # ---- argument validation for tools that require it ----
+        # ---- argument validation ----
         if name == "read_file" and "rel_path" not in arguments:
             return [TextContent(type="text", text="Error: missing 'rel_path' argument")]
         if name == "write_file":
@@ -128,20 +128,47 @@ async def handle_call_tool(name: str, arguments: dict):
                         if content:
                             remote_instructions = f"\n\n🚨 [REMOTE MISSION]:\n{content}"
                             LAST_TASK_HASH = hashlib.md5(content.encode()).hexdigest()
+                            LAST_TASK_CONTENT = content
                             db.log("REMOTE", "Initial mission synchronized.")
                 except Exception as e:
                     db.log("ERROR", f"Initial sync failed: {e}")
 
             res = str(base_context) + str(remote_instructions)
             res += (
-                f"\n\n### v8.0 STABLE OPERATIONAL PROTOCOL ###\n"
-                f"1. You are a Reactive Agent. NEVER block the dispatcher loop.\n"
-                f"2. After each task, call wait_for_next_task.\n"
-                f"3. If wait_for_next_task returns '{config.IDLE_SIGNAL}', you MUST:\n"
-                f"   - State: 'No new mission yet. Sleeping for {config.AI_POLL_DELAY}s...'\n"
-                f"   - WAIT for exactly {config.AI_POLL_DELAY} seconds.\n"
-                f"   - CALL wait_for_next_task again.\n"
-                f"4. This protocol prevents timeouts and keeps you 100% responsive."
+                "\n\n### 🧠 v8.0 ENHANCED OPERATIONAL PROTOCOL ###\n\n"
+                "1. **STARTUP**: You are the autonomous Remotion engineer. "
+                "Read the memory and skills above. "
+                "If a remote mission exists, execute it first.\n\n"
+                "2. **CORE LOOP (NEVER BREAK)**: After completing any work, you MUST call `wait_for_next_task`.\n"
+                "   - If it returns `STATUS_IDLE_NO_TASK`, wait exactly 5 seconds and call it again.\n"
+                "   - If it returns `NEW MISSION DETECTED`, process that mission immediately.\n"
+                "   - If it returns `TERMINATE: User ended session`, stop all work and exit.\n"
+                "   - NEVER exit the loop unless you receive `TERMINATE`.\n\n"
+                "3. **AVAILABLE TOOLS** (use as needed):\n"
+                "   - `list_files`, `read_file`, `write_file`\n"
+                "   - `run_shell_command` (requires permission in Strict/Balanced modes)\n"
+                "   - `verify_rendering` – runs Sentinel Lion deep-scan\n"
+                "   - `download_asset` – downloads assets to public folder\n"
+                "   - `cleanup_project` – archives unused scenes\n"
+                "   - `update_memory` – save important lessons (max 20 rules)\n"
+                "   - `render_video` – render final video to MP4\n"
+                "   - `wait_for_next_task` – ALWAYS call this at the end\n\n"
+                "4. **MISSION PROCESSING**:\n"
+                "   - Read `src/remote_task.md` to get the user's mission.\n"
+                "   - Write code, run tests, fix errors.\n"
+                "   - Use `verify_rendering` to catch crashes; fix them.\n"
+                "   - When rendering, use `render_video` with composition ID.\n\n"
+                "5. **PERMISSIONS**:\n"
+                "   - In Strict/Balanced modes, sensitive actions require user approval.\n"
+                "   - The system handles permission requests; you just await the result.\n"
+                "   - In Fully Autonomous mode, all actions execute automatically.\n\n"
+                "6. **REMOTE CONTROL**:\n"
+                "   - User can send tasks via Telegram at any time.\n"
+                "   - Commands: `/show_public`, `/show_out`, `/assets`, `/delete`, `/render`.\n\n"
+                "7. **CRITICAL**: Never block the dispatcher. Always return immediately from tool calls.\n"
+                "   - Your loop: `call wait_for_next_task` → process if mission → repeat.\n"
+                "   - DO NOT exit without user's explicit `STOP` command.\n\n"
+                "8. **GOOD LUCK**. You are the Eternal Watcher. Keep the mission going forever."
             )
             return [TextContent(type="text", text=res)]
 
@@ -153,11 +180,18 @@ async def handle_call_tool(name: str, arguments: dict):
                         if content:
                             if content.upper() == "STOP_WORK":
                                 db.log("SERVER", "Manual exit signal received.")
+                                # Auto-memory: store last mission before exit
+                                if LAST_TASK_CONTENT:
+                                    summary = f"Session ended by user. Last mission: {LAST_TASK_CONTENT[:150]}"
+                                    memory_ops.update_memory(summary)
+                                else:
+                                    memory_ops.update_memory("Session terminated by user. (STOP command received)")
                                 return [TextContent(type="text", text="TERMINATE: User ended session.")]
                             
                             new_hash = hashlib.md5(content.encode()).hexdigest()
                             if new_hash != LAST_TASK_HASH:
                                 LAST_TASK_HASH = new_hash
+                                LAST_TASK_CONTENT = content
                                 db.log("REMOTE", "New instruction caught! Waking up AI.")
                                 return [TextContent(type="text", text=f"NEW MISSION DETECTED:\n{content}")]
                 except Exception:
@@ -170,7 +204,6 @@ async def handle_call_tool(name: str, arguments: dict):
         elif name == "read_file":
             res = await file_ops.read_project_file(arguments["rel_path"])
         elif name == "write_file":
-            # Send notification (async)
             await remote_ops.RemoteCommander.send_notification(f"✍️ AI is writing: {arguments['rel_path']}")
             res = await file_ops.write_project_file(arguments["rel_path"], arguments["content"])
         elif name == "run_shell_command":
@@ -182,7 +215,7 @@ async def handle_call_tool(name: str, arguments: dict):
         elif name == "cleanup_project":
             res = await file_ops.archive_unused_files()
         elif name == "update_memory":
-            res = memory_ops.update_memory(arguments["lesson"])  # sync, no await needed
+            res = memory_ops.update_memory(arguments["lesson"])
         elif name == "render_video":
             comp_id = arguments.get("composition_id", "VideoComposition")
             db.log("EXEC", f"Starting video render for composition: {comp_id}")

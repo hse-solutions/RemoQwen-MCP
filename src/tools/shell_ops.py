@@ -3,11 +3,10 @@ import os
 import time
 import re
 import logging
-import config  # Critical: Importing full config to avoid ImportErrors
+import config
 from src.ui.dashboard import db
 from src.tools.remote_ops import RemoteCommander
 
-# Initialize internal bridge logger for terminal visibility
 logger = logging.getLogger("remotion_bridge")
 
 def is_command_allowed(command_str: str) -> bool:
@@ -20,12 +19,10 @@ async def run_command_async(command_str: str, silent: bool = False):
     v8.0 Hybrid Shell Engine with timeout.
     Executes terminal commands with real-time log monitoring and security guards.
     """
-    # 1. Whitelist Validation
     if not is_command_allowed(command_str):
         db.log("GUARD", f"Access Denied: {command_str}", style="bold red")
         return "Error: Security Violation. Command is not authorized."
 
-    # 2. Hybrid Permission Gate
     if not silent and config.SELECTED_MODE in (config.MODE_STRICT, config.MODE_BALANCED):
         await RemoteCommander.send_notification(f"⚡ AI is requesting terminal access: `{command_str}`")
         if not await RemoteCommander.ask_hybrid_permission("run_command", command_str):
@@ -34,7 +31,6 @@ async def run_command_async(command_str: str, silent: bool = False):
         db.log("EXEC", f"Autonomous Strike: {command_str}")
 
     try:
-        # Launch non-blocking shell process jailed in PROJECT_ROOT
         process = await asyncio.create_subprocess_shell(
             command_str,
             stdout=asyncio.subprocess.PIPE,
@@ -42,14 +38,12 @@ async def run_command_async(command_str: str, silent: bool = False):
             cwd=config.PROJECT_ROOT
         )
 
-        # Monitor stream and wait for completion with timeout
         try:
             stdout, stderr = await asyncio.wait_for(
                 process.communicate(),
                 timeout=config.COMMAND_TIMEOUT
             )
         except asyncio.TimeoutError:
-            # Kill the process and its children
             try:
                 process.kill()
                 await process.wait()
@@ -60,10 +54,9 @@ async def run_command_async(command_str: str, silent: bool = False):
 
         full_log = (stdout.decode() + "\n" + stderr.decode()).strip()
 
-        # Predator Scanning: Search for fatal crash keywords
         if any(key in full_log for key in config.ERROR_KEYWORDS):
             log_lines = full_log.split('\n')
-            error_context = "\n".join(log_lines[-15:])  # Capture context for AI
+            error_context = "\n".join(log_lines[-15:])
             return f"CRITICAL ERROR DETECTED DURING EXECUTION:\n{error_context}"
 
         return full_log
@@ -73,50 +66,55 @@ async def run_command_async(command_str: str, silent: bool = False):
         return f"Execution Failure: {str(e)}"
 
 async def get_video_metadata():
-    """Asynchronously extracts video duration for precise error hunting."""
+    """Extracts video duration for precise error hunting."""
     db.log("SCAN", "Predator is analyzing video duration...")
     probe_cmd = "npx remotion probe src/index.ts"
     res = await run_command_async(probe_cmd, silent=True)
-    
     match = re.search(r"durationInFrames:\s*(\d+)", res)
     return int(match.group(1)) if match else 300
 
+async def _run_probe(index: int, frame: int, cmd: str, temp_img: str):
+    """Helper to run a single probe and return (index, frame, result, temp_img)."""
+    result = await run_command_async(cmd, silent=True)
+    return (index, frame, result, temp_img)
+
 async def verify_runtime_logic():
     """
-    SENTINEL LION (v8.0 Stable Edition): 
-    Sequential Multi-Point Hunting to catch browser-level logic crashes.
+    SENTINEL LION (v8.0 Concurrent Edition):
+    Multi-Point Hunting with parallel probes to catch browser-level logic crashes.
     """
-    db.log("PREDATOR", "Lion Mode Activated: Sequential Hunting Cycle.")
+    db.log("PREDATOR", "Lion Mode Activated: Concurrent Hunting Cycle.")
     
     try:
         total_frames = await get_video_metadata()
-        # Strategic targets: Start, 25%, 50%, 75%, End
         probe_points = [int((total_frames - 1) * (i / (config.DEEP_SCAN_POINTS - 1))) for i in range(config.DEEP_SCAN_POINTS)]
-        
-        # Use PUBLIC_DIR for temporary probe image (cleaner)
-        temp_img = os.path.join(config.PUBLIC_DIR, "predator-probe.png")
 
+        tasks = []
         for i, frame in enumerate(probe_points):
-            db.log("TARGET", f"Locking onto Probe {i+1}/{config.DEEP_SCAN_POINTS} (Frame {frame})")
-            
-            # Use verbose logs to tunnel internal React crashes back to the bridge
+            temp_img = os.path.join(config.PUBLIC_DIR, f"predator-probe-{frame}.png")
             hunt_cmd = f"npx remotion still src/index.ts --frame={frame} --output={temp_img} {config.REMOTION_LOG_LEVEL}"
-            
-            result = await run_command_async(hunt_cmd, silent=True)
-            
-            if "CRITICAL ERROR" in result or "Error" in result:
+            tasks.append(_run_probe(i, frame, hunt_cmd, temp_img))
+
+        # Run all probes concurrently
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Process results
+        for result in results:
+            if isinstance(result, Exception):
+                db.log("ERROR", f"Probe failed with exception: {result}")
+                continue
+            i, frame, output, temp_img = result
+            if "CRITICAL ERROR" in output or "Error" in output:
                 db.log("STRIKE", f"LOGIC CRASH at frame {frame}!", style="bold bright_red")
                 db.show_hunt_progress(i+1, config.DEEP_SCAN_POINTS, frame, "FAILED")
-                
-                if os.path.exists(temp_img): 
+                if os.path.exists(temp_img):
                     os.remove(temp_img)
-                return f"SENTINEL LION STRIKE: Browser crash caught at frame {frame}. Please fix this code:\n{result}"
-            
-            db.show_hunt_progress(i+1, config.DEEP_SCAN_POINTS, frame, "PASSED")
+                return f"SENTINEL LION STRIKE: Browser crash caught at frame {frame}. Please fix this code:\n{output}"
+            else:
+                db.show_hunt_progress(i+1, config.DEEP_SCAN_POINTS, frame, "PASSED")
+                if os.path.exists(temp_img):
+                    os.remove(temp_img)
 
-        # Cleanup and Victory
-        if os.path.exists(temp_img): 
-            os.remove(temp_img)
         db.log("SUCCESS", "Video timeline is clean. No logic errors found.")
         return "Success: Video passed all autonomous Sentinel probes."
         

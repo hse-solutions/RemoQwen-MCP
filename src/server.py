@@ -83,7 +83,10 @@ async def handle_list_tools():
         ),
         Tool(
             name="render_video",
-            description="Renders the Remotion video to MP4. Saves to out/ folder.",
+            description=(
+                "Renders the Remotion video to MP4. Saves to out/ folder. "
+                "**Requires user authorization in Strict/Balanced modes. Only use when user explicitly requests via Telegram /render command.**"
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -151,7 +154,7 @@ async def handle_call_tool(name: str, arguments: dict):
                 "   - `download_asset` – downloads assets to public folder\n"
                 "   - `cleanup_project` – archives unused scenes\n"
                 "   - `update_memory` – save important lessons (max 20 rules)\n"
-                "   - `render_video` – render final video to MP4\n"
+                "   - `render_video` – render final video to MP4 (requires permission in Strict/Balanced modes)\n"
                 "   - `wait_for_next_task` – ALWAYS call this at the end\n\n"
                 "4. **MISSION PROCESSING**:\n"
                 "   - Read `src/remote_task.md` to get the user's mission.\n"
@@ -218,6 +221,14 @@ async def handle_call_tool(name: str, arguments: dict):
             res = memory_ops.update_memory(arguments["lesson"])
         elif name == "render_video":
             comp_id = arguments.get("composition_id", "VideoComposition")
+            
+            # Permission Gate
+            if config.SELECTED_MODE in (config.MODE_STRICT, config.MODE_BALANCED):
+                if not await remote_ops.RemoteCommander.ask_hybrid_permission("render_video", comp_id):
+                    return [TextContent(type="text", text="Error: Render was denied by the user.")]
+            else:
+                db.log("EXEC", f"Autonomous render requested for composition: {comp_id}")
+            
             db.log("EXEC", f"Starting video render for composition: {comp_id}")
             render_cmd = f"npx remotion render src/index.ts {comp_id}"
             result = await shell_ops.run_command_async(render_cmd)

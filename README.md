@@ -20,16 +20,20 @@ You can send tasks from your phone via Telegram, close the laptop, and the AI wi
 
 ## 🔥 Key Features
 
-- 🦁 **Sentinel Lion v2** – Multi-point timeline crash detection + auto self-healing  
-- ♾️ **Infinite Task Loop** – `wait_for_next_task()` tool in `src/server.py` runs forever  
+- 🦁 **Sentinel Lion v3** – Concurrent multi‑point timeline crash detection (background, non‑blocking)  
+- ♾️ **Infinite Task Loop** – `wait_for_next_task()` + reactive polling – AI never exits without permission  
 - 📱 **Full Telegram Remote Control** – Send prompts from phone, no terminal needed  
-- 🔄 **remote_task.md Bridge** – Central task file (Telegram + Manual + Qwen)  
+- 🖼️ **Asset Management** – Upload images, list, preview, delete, and organise in `public/` folder  
+- 🎥 **Remote Rendering** – Trigger video render via Telegram `/render` (permission‑aware)  
+- 📋 **Message Utilities** – `/msgid` to get message IDs, `/del` to delete messages (also cancels pending AI requests or clears tasks)  
+- 🔄 **Background Verification** – No MCP timeouts; AI polls status with `verify_rendering_status`  
+- 🧠 **Persistent Memory** – Top‑20 rules, auto‑saved on session end, loads all `.md` skills from `.agents` folder  
+- 🔐 **Hybrid Permissions** – Strict/Balanced modes require user approval (Telegram inline buttons + terminal)  
 - 🚦 **3 Operation Modes** – Fully Autonomous / Guarded Network / Strict Manual  
-- ❤️ **Immortal SSE Connection** – Heartbeat + 10-hour keep-alive  
+- ❤️ **Immortal SSE Connection** – Heartbeat + 10‑hour keep‑alive  
 - 🎥 **Cinematic Dashboard** – Rich terminal with beautiful logs & icons  
 - 🌍 **Zero Cloud Dependency** – 100% local (Qwen Desktop + MCP server)  
-- 🧠 **Persistent Memory • Asset Downloader • Secure Shell Jail**  
-- 📂 **Asset Management via Telegram** – Add images to `public/` folder with custom names, list, and delete assets remotely
+- 🧠 **Persistent Memory • Asset Downloader • Secure Shell Jail**
 
 ---
 
@@ -58,6 +62,11 @@ You can send tasks from your phone via Telegram, close the laptop, and the AI wi
    # Optional but recommended for full remote control
    TELEGRAM_TOKEN=1234567890:AAFxxxxxxxxxxxxxxxxxxxxxxxxxxxx
    AUTHORIZED_CHAT_ID=123456789
+
+   # Optional environment variables
+   LOG_LEVEL=INFO               # DEBUG, INFO, WARNING, ERROR
+   PERMISSION_TIMEOUT=60        # seconds to wait for user approval
+   DEEP_SCAN_POINTS=3           # number of verification frames (lower = faster)
    ```
 
 4. **Launch**
@@ -105,31 +114,6 @@ You can send tasks from your phone via Telegram, close the laptop, and the AI wi
 
 ---
 
-## 📱 Telegram Commands & Remote Control
-
-Once your bot is running, you can control everything from Telegram. Send `/help` to see the available commands:
-
-```
-🚀 REMOTE COMMANDER v7.1
-
-💬 Send Text - Starts a new mission
-🛑 Send 'STOP' - Terminates the AI loop
-🖼️ Image + Caption - Saves asset with custom name
-📊 /assets - List project assets
-🗑️ /delete name - Remove an asset
-📡 /status - Check system radar
-```
-
-### How to use asset commands:
-
-- **Add an asset** – Send an image **with a caption**. The caption will be used as the filename (e.g., `logo.png`). The image is saved inside your Remotion project's `public/` folder, ready to be used in your compositions.
-- **List assets** – Type `/assets` to see all files currently in the `public/` folder.
-- **Delete an asset** – Type `/delete filename` (e.g., `/delete logo.png`) to remove it from the folder.
-
-These commands let you manage visual assets completely from your phone, without touching the terminal.
-
----
-
 ## 📂 Full Folder Structure
 ```
 RemoQwen-MCP/
@@ -141,20 +125,51 @@ RemoQwen-MCP/
 ├── requirements.txt
 ├── run.py
 ├── src/
-│   ├── server.py                  ← wait_for_next_task() tool + MCP logic
+│   ├── server.py                  ← MCP server (background verification, tools)
 │   ├── ui/
 │   │   └── dashboard.py           ← Cinematic terminal UI
 │   └── tools/
 │       ├── asset_ops.py
 │       ├── file_ops.py
 │       ├── memory_ops.py
-│       ├── remote_ops.py          ← Telegram bot
+│       ├── remote_ops.py          ← Telegram bot (all commands)
 │       └── shell_ops.py
 └── .env
 ```
 
+**Skills & Memory:**
+- Place your Remotion best practices / guidelines as `.md` files in the `.agents` folder inside your Remotion project.  
+- The AI will load **all** `.md` files recursively from `.agents` on startup.
+- Memory (top 20 rules) is stored in `memory.md` at the project root.
+
+---
+
 ## 🎯 Master Prompt Example
 Initialize context. Create a premium 8-second liquid glass animation (1080p, cinematic). After writing the code, trigger Sentinel Lion verification.
+
+---
+
+## 🛠️ Advanced Configuration
+
+You can set these in `.env` to fine‑tune the system:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LOG_LEVEL` | `INFO` | Log verbosity (DEBUG, INFO, WARNING, ERROR) |
+| `PERMISSION_TIMEOUT` | `60` | Seconds to wait for user approval before auto‑deny |
+| `DEEP_SCAN_POINTS` | `3` | Number of frames to check during verification (lower = faster) |
+| `COMMAND_TIMEOUT` | `600` | Seconds before killing a hanging shell command |
+
+---
+
+## 🔒 Security Highlights
+
+- **Path jail** – All file operations stay inside your Remotion project root.
+- **Command whitelist** – Only `npm`, `npx`, `node`, `remotion` allowed.
+- **Hybrid permissions** – In Strict/Balanced modes, sensitive tools require user approval (Telegram or terminal).
+- **Process timeout** – Long‑running commands are automatically killed after 10 minutes.
+- **Telegram authorization** – Only the chat ID you set in `.env` can interact with the bot.
+- **SIGTERM handling** – Graceful shutdown on system signals.
 
 ---
 

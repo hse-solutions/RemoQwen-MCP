@@ -10,15 +10,10 @@ from src.tools.remote_ops import RemoteCommander
 logger = logging.getLogger("remotion_bridge")
 
 def is_command_allowed(command_str: str) -> bool:
-    """Security check to ensure only whitelisted commands can execute."""
     base_cmd = command_str.split()[0].replace(".exe", "")
     return base_cmd in config.ALLOWED_COMMANDS
 
 async def run_command_async(command_str: str, silent: bool = False):
-    """
-    v8.0 Hybrid Shell Engine with timeout.
-    Executes terminal commands with real-time log monitoring and security guards.
-    """
     if not is_command_allowed(command_str):
         db.log("GUARD", f"Access Denied: {command_str}", style="bold red")
         return "Error: Security Violation. Command is not authorized."
@@ -66,7 +61,6 @@ async def run_command_async(command_str: str, silent: bool = False):
         return f"Execution Failure: {str(e)}"
 
 async def get_video_metadata():
-    """Extracts video duration for precise error hunting."""
     db.log("SCAN", "Predator is analyzing video duration...")
     probe_cmd = "npx remotion probe src/index.ts"
     res = await run_command_async(probe_cmd, silent=True)
@@ -74,14 +68,13 @@ async def get_video_metadata():
     return int(match.group(1)) if match else 300
 
 async def _run_probe(index: int, frame: int, cmd: str, temp_img: str):
-    """Helper to run a single probe and return (index, frame, result, temp_img)."""
     result = await run_command_async(cmd, silent=True)
     return (index, frame, result, temp_img)
 
 async def verify_runtime_logic():
     """
-    SENTINEL LION (v8.0 Concurrent Edition):
-    Multi-Point Hunting with parallel probes to catch browser-level logic crashes.
+    SENTINEL LION (v8.0 Concurrent Edition with Total Timeout).
+    Multi-Point Hunting with parallel probes and overall timeout.
     """
     db.log("PREDATOR", "Lion Mode Activated: Concurrent Hunting Cycle.")
     
@@ -95,8 +88,21 @@ async def verify_runtime_logic():
             hunt_cmd = f"npx remotion still src/index.ts --frame={frame} --output={temp_img} {config.REMOTION_LOG_LEVEL}"
             tasks.append(_run_probe(i, frame, hunt_cmd, temp_img))
 
-        # Run all probes concurrently
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        # Run all probes concurrently with total timeout
+        try:
+            results = await asyncio.wait_for(
+                asyncio.gather(*tasks, return_exceptions=True),
+                timeout=config.VERIFY_RENDERING_TIMEOUT
+            )
+        except asyncio.TimeoutError:
+            db.log("ERROR", f"Verification timed out after {config.VERIFY_RENDERING_TIMEOUT} seconds.")
+            # Clean up any leftover temp images (optional, but we can attempt)
+            for i, frame in enumerate(probe_points):
+                temp_img = os.path.join(config.PUBLIC_DIR, f"predator-probe-{frame}.png")
+                if os.path.exists(temp_img):
+                    try: os.remove(temp_img)
+                    except: pass
+            return "Error: Verification timed out. Please try again or reduce complexity."
 
         # Process results
         for result in results:

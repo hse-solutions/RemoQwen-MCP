@@ -3,6 +3,7 @@ import logging
 import sys
 import os
 import asyncio
+import signal
 import questionary
 from contextlib import asynccontextmanager
 from starlette.applications import Starlette
@@ -12,9 +13,21 @@ from mcp.server.sse import SseServerTransport
 
 import config
 from src.server import server
-# Importing via the synchronized alias in dashboard.py
 from src.ui.dashboard import db
 from src.tools.remote_ops import RemoteCommander
+
+# =============================================================================
+# SIGNAL HANDLERS FOR GRACEFUL SHUTDOWN
+# =============================================================================
+
+def handle_shutdown(signum, frame):
+    """Handle SIGINT and SIGTERM to exit gracefully."""
+    print("\n")
+    db.log("SERVER", "Shutdown signal received. Exiting...")
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, handle_shutdown)
+signal.signal(signal.SIGTERM, handle_shutdown)
 
 # =============================================================================
 # AUTO-ONBOARDING WIZARD (Synchronous & Safe)
@@ -142,9 +155,15 @@ if __name__ == "__main__":
         db.header()
         config.TELEGRAM_ENABLED = telegram_setup_wizard()
         config.SELECTED_MODE = db.select_mode()
-        config.refresh_env() # Lock in final pathing configuration
-        
-        # 2. Hand over event loop control to Uvicorn with High-Persistence parameters
+        config.refresh_env()  # Lock in final pathing configuration
+
+        # 2. Validate project path exists
+        if not os.path.isdir(config.PROJECT_ROOT):
+            db.log("ERROR", f"Remotion project path not found: {config.PROJECT_ROOT}")
+            db.log("ERROR", "Please set REMOTION_PROJECT_PATH in .env to a valid directory.")
+            sys.exit(1)
+
+        # 3. Hand over event loop control to Uvicorn with High-Persistence parameters
         uvicorn.run(
             app, 
             host="127.0.0.1", 
@@ -160,3 +179,4 @@ if __name__ == "__main__":
         sys.exit(0)
     except Exception as e:
         print(f"Critical Startup Failure: {e}")
+        sys.exit(1)

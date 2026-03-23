@@ -1,25 +1,23 @@
 import os
 import asyncio
 import logging
+import uuid
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 import config
-# This import now works perfectly because of the alias in dashboard.py
 from src.ui.dashboard import db
 
-# Initialize bridge logger for remote operations tracking
 logger = logging.getLogger("remotion_bridge")
 
 class RemoteCommander:
     """
-    v7.1 ASSET COMMANDER (Eternal Loop Edition).
-    Handles remote orchestration, smart asset management, and atomic task injection.
-    Synchronized with the Async Hybrid Permission system.
+    v8.0 ASSET COMMANDER (Enhanced).
+    Handles remote orchestration, smart asset management, atomic task injection,
+    and hybrid permission system with per-request futures and timeout.
     """
     _app: Application = None
-    _permission_event = asyncio.Event()
-    _last_permission_result = False
+    _pending_perm_requests = {}  # {request_id: asyncio.Future}
 
     @classmethod
     async def start_bot(cls):
@@ -38,8 +36,11 @@ class RemoteCommander:
             cls._app.add_handler(CommandHandler("status", cls._cmd_status))
             cls._app.add_handler(CommandHandler("assets", cls._cmd_assets))
             cls._app.add_handler(CommandHandler("delete", cls._cmd_delete))
+            cls._app.add_handler(CommandHandler("show_public", cls._cmd_show_public))
+            cls._app.add_handler(CommandHandler("show_out", cls._cmd_show_out))
+            cls._app.add_handler(CommandHandler("render", cls._cmd_render))
             
-            cls._app.add_handler(CallbackQueryHandler(cls._handle_permission_callback))
+            cls._app.add_handler(CallbackQueryHandler(cls._handle_callback))  # unified callback handler
 
             # Media Handlers for Smart Naming (Photos and Docs)
             cls._app.add_handler(MessageHandler(
@@ -68,27 +69,27 @@ class RemoteCommander:
 
     @staticmethod
     async def _cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handles the /start command."""
         if str(update.effective_user.id) != str(config.AUTHORIZED_CHAT_ID): return
         await update.message.reply_text(f"👋 Greetings HIRUNA!\nYour PC is linked. Use /help for remote features.")
 
     @staticmethod
     async def _cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Displays available remote commands."""
         help_msg = (
-            "🚀 *REMOTE COMMANDER v7.1*\n\n"
+            "🚀 *REMOTE COMMANDER v8.0*\n\n"
             "💬 *Send Text* - Starts a new mission\n"
             "🛑 *Send 'STOP'* - Terminates the AI loop\n"
             "🖼️ *Image + Caption* - Saves asset with custom name\n"
-            "📊 /assets - List project assets\n"
-            "🗑️ /delete [name] - Remove an asset\n"
+            "📊 /assets - Choose folder (public/out) and list files\n"
+            "📷 /show_public <filename> - View asset from public folder\n"
+            "🎬 /show_out <filename> - View rendered video from out folder\n"
+            "🎥 /render [composition] - Trigger video rendering (optional composition ID)\n"
+            "🗑️ /delete [name] - Remove asset from public folder\n"
             "📡 /status - Check system radar"
         )
         await update.message.reply_markdown(help_msg)
 
     @staticmethod
     async def _cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Sends a mission control report to the phone."""
         if str(update.effective_user.id) != str(config.AUTHORIZED_CHAT_ID): return
         status_card = (
             "📡 *MISSION CONTROL RADAR*\n"
@@ -101,21 +102,85 @@ class RemoteCommander:
 
     @staticmethod
     async def _cmd_assets(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Lists files in the project's public directory."""
+        """Send folder selection inline keyboard."""
         if str(update.effective_user.id) != str(config.AUTHORIZED_CHAT_ID): return
+        keyboard = [
+            [InlineKeyboardButton("📁 PUBLIC FOLDER", callback_data="assets_public"),
+             InlineKeyboardButton("📁 OUT FOLDER", callback_data="assets_out")]
+        ]
+        await update.message.reply_text(
+            "📂 *SELECT FOLDER*",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
+
+    @staticmethod
+    async def _cmd_show_public(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Send a file from public folder."""
+        if str(update.effective_user.id) != str(config.AUTHORIZED_CHAT_ID): return
+        if not context.args:
+            await update.message.reply_text("❓ Usage: /show_public logo.png")
+            return
+        filename = ' '.join(context.args)  # allow spaces in filename
+        file_path = os.path.join(config.PUBLIC_DIR, filename)
+        if not os.path.exists(file_path):
+            await update.message.reply_text(f"🚫 `{filename}` not found in public folder.")
+            return
         try:
-            files = os.listdir(config.PUBLIC_DIR)
-            if not files:
-                await update.message.reply_text("📂 Public folder is empty.")
-                return
-            list_msg = "📂 *PROJECT ASSETS*\n───────────────────\n"
-            for f in files:
-                emoji = "🖼️" if f.lower().endswith(('.png', '.jpg', '.jpeg', '.svg')) else "📄"
-                size = os.path.getsize(os.path.join(config.PUBLIC_DIR, f)) / 1024
-                list_msg += f"{emoji} `{f}` ({size:.1f} KB)\n"
-            await update.message.reply_markdown(list_msg)
+            # Send as photo if it's an image, otherwise as document
+            if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.svg')):
+                with open(file_path, 'rb') as f:
+                    await update.message.reply_photo(f, caption=f"📷 *{filename}*")
+            else:
+                with open(file_path, 'rb') as f:
+                    await update.message.reply_document(f, caption=f"📄 *{filename}*")
         except Exception as e:
-            await update.message.reply_text(f"❌ Error: {e}")
+            await update.message.reply_text(f"❌ Error sending file: {e}")
+
+    @staticmethod
+    async def _cmd_show_out(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Send a rendered video from out folder."""
+        if str(update.effective_user.id) != str(config.AUTHORIZED_CHAT_ID): return
+        if not context.args:
+            await update.message.reply_text("❓ Usage: /show_out video.mp4")
+            return
+        filename = ' '.join(context.args)
+        file_path = os.path.join(config.OUT_DIR, filename)
+        if not os.path.exists(file_path):
+            await update.message.reply_text(f"🚫 `{filename}` not found in out folder.")
+            return
+        if not filename.lower().endswith('.mp4'):
+            await update.message.reply_text(f"⚠️ Only MP4 videos are supported for preview.")
+            return
+        try:
+            file_size = os.path.getsize(file_path) / (1024 * 1024)  # MB
+            if file_size > 50:
+                await update.message.reply_text(f"⚠️ Video is {file_size:.1f} MB. Telegram limit is 50 MB. Sending as document.")
+                with open(file_path, 'rb') as f:
+                    await update.message.reply_document(f, caption=f"🎬 *{filename}* ({file_size:.1f} MB)")
+            else:
+                with open(file_path, 'rb') as f:
+                    await update.message.reply_video(f, caption=f"🎬 *{filename}*")
+        except Exception as e:
+            await update.message.reply_text(f"❌ Error sending video: {e}")
+
+    @staticmethod
+    async def _cmd_render(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Trigger video rendering by writing to remote_task.md."""
+        if str(update.effective_user.id) != str(config.AUTHORIZED_CHAT_ID): return
+        composition = context.args[0] if context.args else "VideoComposition"
+        task_content = f"RENDER_VIDEO:{composition}"
+        try:
+            os.makedirs(os.path.dirname(config.REMOTE_TASK_FILE), exist_ok=True)
+            with open(config.REMOTE_TASK_FILE, "w", encoding="utf-8") as f:
+                f.write(task_content)
+            db.log("REMOTE", f"Render requested for composition: {composition}")
+            await update.message.reply_text(
+                f"🎬 *RENDER TRIGGERED*\n\nComposition: `{composition}`\n\nAI will start rendering soon. Use `/status` to check progress.",
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            await update.message.reply_text(f"❌ *SYNC ERROR:* {e}")
 
     @staticmethod
     async def _cmd_delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -124,7 +189,7 @@ class RemoteCommander:
         if not context.args:
             await update.message.reply_text("❓ Usage: /delete logo.png")
             return
-        filename = context.args[0]
+        filename = ' '.join(context.args)
         file_path = os.path.join(config.PUBLIC_DIR, filename)
         if not os.path.exists(file_path):
             await update.message.reply_text(f"🚫 `{filename}` not found.")
@@ -169,7 +234,6 @@ class RemoteCommander:
         if str(update.effective_user.id) != str(config.AUTHORIZED_CHAT_ID): return
         prompt = update.message.text
         
-        # Check for Kill-Switch instruction
         if prompt.upper() in ["STOP", "EXIT", "STOP_WORK"]:
             db.log("SERVER", "Remote shutdown signal received.")
             payload = "STOP_WORK"
@@ -191,61 +255,110 @@ class RemoteCommander:
     async def send_notification(cls, message: str):
         """Pushes real-time terminal notifications to the phone."""
         if cls._app and config.TELEGRAM_ENABLED:
-            try: await cls._app.bot.send_message(chat_id=config.AUTHORIZED_CHAT_ID, text=message)
-            except: pass
+            try: 
+                await cls._app.bot.send_message(chat_id=config.AUTHORIZED_CHAT_ID, text=message)
+            except Exception:
+                pass
 
     @classmethod
     async def ask_hybrid_permission(cls, tool_name: str, target: str) -> bool:
         """
-        Remote/Local Permission Gate. 
-        Blocks the server loop until authorized via phone or terminal.
+        Remote/Local Permission Gate with per-request timeout.
         """
         if not cls._app or not config.TELEGRAM_ENABLED:
             return await db.ask_permission(tool_name, target)
 
+        request_id = str(uuid.uuid4())
+        future = asyncio.Future()
+        cls._pending_perm_requests[request_id] = future
+
         db.log("GUARD", f"Awaiting remote authorization for '{tool_name}'...", style="bold magenta")
-        keyboard = [[InlineKeyboardButton("✅ APPROVE", callback_data="perm_yes"), InlineKeyboardButton("❌ DENY", callback_data="perm_no")]]
-        
-        # Reset event state for current request
-        cls._permission_event.clear()
+        keyboard = [[InlineKeyboardButton("✅ APPROVE", callback_data=f"perm_yes:{request_id}"),
+                     InlineKeyboardButton("❌ DENY", callback_data=f"perm_no:{request_id}")]]
         
         msg = f"⚠️ *AUTHORIZATION REQUIRED*\n\nAI wants to: `{tool_name}`\nTarget: `{target}`"
-        await cls._app.bot.send_message(chat_id=config.AUTHORIZED_CHAT_ID, text=msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
-        
-        # Async Wait for interaction
-        await cls._permission_event.wait()
-        return cls._last_permission_result
+        try:
+            await cls._app.bot.send_message(
+                chat_id=config.AUTHORIZED_CHAT_ID,
+                text=msg,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            db.log("ERROR", f"Failed to send permission request: {e}")
+            del cls._pending_perm_requests[request_id]
+            return False
+
+        try:
+            # Wait for response with timeout
+            result = await asyncio.wait_for(future, timeout=config.PERMISSION_TIMEOUT)
+            return result
+        except asyncio.TimeoutError:
+            db.log("ERROR", f"Permission request for {tool_name} timed out after {config.PERMISSION_TIMEOUT}s")
+            return False
+        finally:
+            # Clean up
+            cls._pending_perm_requests.pop(request_id, None)
 
     @classmethod
-    async def _handle_permission_callback(cls, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Processes interaction feedback from the phone."""
+    async def _handle_callback(cls, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Unified callback handler for all inline keyboards."""
         query = update.callback_query
         await query.answer()
         data = query.data
 
-        # 1. Handle Deletion Confirmation logic
-        if data.startswith("del_"):
-            if data.startswith("del_yes:"):
-                filename = data.split(":")[1]
-                try:
-                    os.remove(os.path.join(config.PUBLIC_DIR, filename))
-                    await query.edit_message_text(text=f"🗑️ *DELETED:* `{filename}` successfully removed.")
-                    db.log("CLEAN", f"Remote cleanup: {filename}")
-                except Exception as e:
-                    await query.edit_message_text(text=f"❌ *ERROR:* {e}")
-            else:
-                await query.edit_message_text(text="❌ Deletion cancelled.")
+        # 1. Asset folder selection (assets_public / assets_out)
+        if data in ("assets_public", "assets_out"):
+            folder_path = config.PUBLIC_DIR if data == "assets_public" else config.OUT_DIR
+            folder_name = "public" if data == "assets_public" else "out"
+            try:
+                files = os.listdir(folder_path)
+                if not files:
+                    await query.edit_message_text(f"📂 *{folder_name.upper()} FOLDER* is empty.", parse_mode="Markdown")
+                    return
+                list_msg = f"📂 *{folder_name.upper()} FOLDER*\n───────────────────\n"
+                for f in files:
+                    if data == "assets_public":
+                        emoji = "🖼️" if f.lower().endswith(('.png', '.jpg', '.jpeg', '.svg')) else "📄"
+                    else:
+                        emoji = "🎬" if f.lower().endswith('.mp4') else "📄"
+                    size = os.path.getsize(os.path.join(folder_path, f)) / 1024
+                    list_msg += f"{emoji} `{f}` ({size:.1f} KB)\n"
+                await query.edit_message_text(list_msg, parse_mode="Markdown")
+            except Exception as e:
+                await query.edit_message_text(f"❌ Error: {e}")
             return
 
-        # 2. Handle Tool Approval logic
-        if data == "perm_yes":
-            cls._last_permission_result = True
-            await query.edit_message_text(text="✅ *PERMISSION GRANTED* (Executing on PC...)")
-            db.log("SUCCESS", "Action approved remotely.")
-        else:
-            cls._last_permission_result = False
-            await query.edit_message_text(text="❌ *PERMISSION DENIED* (Aborted locally.)")
-            db.log("ERROR", "Action rejected remotely.")
-        
-        # Release the waiting server thread
-        cls._permission_event.set()
+        # 2. Deletion confirmation
+        if data.startswith("del_"):
+            if data.startswith("del_yes:"):
+                filename = data.split(":", 1)[1]
+                try:
+                    os.remove(os.path.join(config.PUBLIC_DIR, filename))
+                    await query.edit_message_text(text=f"🗑️ *DELETED:* `{filename}` successfully removed.", parse_mode="Markdown")
+                    db.log("CLEAN", f"Remote cleanup: {filename}")
+                except Exception as e:
+                    await query.edit_message_text(text=f"❌ *ERROR:* {e}", parse_mode="Markdown")
+            else:
+                await query.edit_message_text(text="❌ Deletion cancelled.", parse_mode="Markdown")
+            return
+
+        # 3. Permission approval
+        if data.startswith("perm_yes:") or data.startswith("perm_no:"):
+            try:
+                _, request_id = data.split(":", 1)
+                future = cls._pending_perm_requests.get(request_id)
+                if future and not future.done():
+                    if data.startswith("perm_yes:"):
+                        future.set_result(True)
+                        await query.edit_message_text(text="✅ *PERMISSION GRANTED* (Executing on PC...)", parse_mode="Markdown")
+                        db.log("SUCCESS", "Action approved remotely.")
+                    else:
+                        future.set_result(False)
+                        await query.edit_message_text(text="❌ *PERMISSION DENIED* (Aborted locally.)", parse_mode="Markdown")
+                        db.log("ERROR", "Action rejected remotely.")
+                else:
+                    await query.edit_message_text(text="⚠️ This request has already expired or been processed.", parse_mode="Markdown")
+            except Exception as e:
+                await query.edit_message_text(text=f"❌ Error processing permission: {e}", parse_mode="Markdown")
+            return

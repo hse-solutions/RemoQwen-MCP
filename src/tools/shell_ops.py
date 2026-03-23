@@ -3,7 +3,7 @@ import os
 import time
 import re
 import logging
-import config # Critical: Importing full config to avoid ImportErrors
+import config  # Critical: Importing full config to avoid ImportErrors
 from src.ui.dashboard import db
 from src.tools.remote_ops import RemoteCommander
 
@@ -17,7 +17,7 @@ def is_command_allowed(command_str: str) -> bool:
 
 async def run_command_async(command_str: str, silent: bool = False):
     """
-    v8.0 Hybrid Shell Engine.
+    v8.0 Hybrid Shell Engine with timeout.
     Executes terminal commands with real-time log monitoring and security guards.
     """
     # 1. Whitelist Validation
@@ -26,15 +26,11 @@ async def run_command_async(command_str: str, silent: bool = False):
         return "Error: Security Violation. Command is not authorized."
 
     # 2. Hybrid Permission Gate
-    # Ask for user consent in Strict or Balanced modes
-    if not silent and config.SELECTED_MODE in [config.MODE_STRICT, config.MODE_BALANCED]:
+    if not silent and config.SELECTED_MODE in (config.MODE_STRICT, config.MODE_BALANCED):
         await RemoteCommander.send_notification(f"⚡ AI is requesting terminal access: `{command_str}`")
-        
-        # Await the signal from phone or local terminal
         if not await RemoteCommander.ask_hybrid_permission("run_command", command_str):
             return "Error: Terminal execution was rejected by the user."
     elif not silent:
-        # Fully Autonomous: Instant Execution
         db.log("EXEC", f"Autonomous Strike: {command_str}")
 
     try:
@@ -46,14 +42,28 @@ async def run_command_async(command_str: str, silent: bool = False):
             cwd=config.PROJECT_ROOT
         )
 
-        # Monitor stream and wait for completion
-        stdout, stderr = await process.communicate()
+        # Monitor stream and wait for completion with timeout
+        try:
+            stdout, stderr = await asyncio.wait_for(
+                process.communicate(),
+                timeout=config.COMMAND_TIMEOUT
+            )
+        except asyncio.TimeoutError:
+            # Kill the process and its children
+            try:
+                process.kill()
+                await process.wait()
+            except:
+                pass
+            db.log("ERROR", f"Command timed out after {config.COMMAND_TIMEOUT}s: {command_str}")
+            return f"Error: Command timed out after {config.COMMAND_TIMEOUT} seconds."
+
         full_log = (stdout.decode() + "\n" + stderr.decode()).strip()
 
-        # Predator Scanning: Search for fatal crash keywords in the logs
+        # Predator Scanning: Search for fatal crash keywords
         if any(key in full_log for key in config.ERROR_KEYWORDS):
             log_lines = full_log.split('\n')
-            error_context = "\n".join(log_lines[-15:]) # Capture context for AI
+            error_context = "\n".join(log_lines[-15:])  # Capture context for AI
             return f"CRITICAL ERROR DETECTED DURING EXECUTION:\n{error_context}"
 
         return full_log
@@ -83,8 +93,8 @@ async def verify_runtime_logic():
         # Strategic targets: Start, 25%, 50%, 75%, End
         probe_points = [int((total_frames - 1) * (i / (config.DEEP_SCAN_POINTS - 1))) for i in range(config.DEEP_SCAN_POINTS)]
         
-        # Locked public path for validation images
-        temp_img = os.path.join(config.PROJECT_ROOT, "public", "predator-probe.png")
+        # Use PUBLIC_DIR for temporary probe image (cleaner)
+        temp_img = os.path.join(config.PUBLIC_DIR, "predator-probe.png")
 
         for i, frame in enumerate(probe_points):
             db.log("TARGET", f"Locking onto Probe {i+1}/{config.DEEP_SCAN_POINTS} (Frame {frame})")
@@ -98,13 +108,15 @@ async def verify_runtime_logic():
                 db.log("STRIKE", f"LOGIC CRASH at frame {frame}!", style="bold bright_red")
                 db.show_hunt_progress(i+1, config.DEEP_SCAN_POINTS, frame, "FAILED")
                 
-                if os.path.exists(temp_img): os.remove(temp_img)
+                if os.path.exists(temp_img): 
+                    os.remove(temp_img)
                 return f"SENTINEL LION STRIKE: Browser crash caught at frame {frame}. Please fix this code:\n{result}"
             
             db.show_hunt_progress(i+1, config.DEEP_SCAN_POINTS, frame, "PASSED")
 
         # Cleanup and Victory
-        if os.path.exists(temp_img): os.remove(temp_img)
+        if os.path.exists(temp_img): 
+            os.remove(temp_img)
         db.log("SUCCESS", "Video timeline is clean. No logic errors found.")
         return "Success: Video passed all autonomous Sentinel probes."
         

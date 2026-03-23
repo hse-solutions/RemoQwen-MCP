@@ -39,10 +39,26 @@ TELEGRAM_ENABLED = False
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 AUTHORIZED_CHAT_ID = os.getenv("AUTHORIZED_CHAT_ID")
 
-# Dynamic Paths - Managed by refresh_env()
+# =============================================================================
+# LOGGING CONFIGURATION
+# =============================================================================
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+# Mapping for numeric levels (used in dashboard.py)
+LOG_LEVELS = {"DEBUG": 10, "INFO": 20, "WARNING": 30, "ERROR": 40}
+CURRENT_LOG_LEVEL = LOG_LEVELS.get(LOG_LEVEL, 20)
+
+# =============================================================================
+# PERMISSION TIMEOUT (seconds)
+# =============================================================================
+PERMISSION_TIMEOUT = int(os.getenv("PERMISSION_TIMEOUT", "60"))
+
+# =============================================================================
+# DYNAMIC PATHS - Managed by refresh_env()
+# =============================================================================
 PROJECT_ROOT = ""
 SRC_DIR = ""
 PUBLIC_DIR = ""
+OUT_DIR = ""               # <-- NEW: for rendered videos
 SKILLS_DIR = ""
 MEMORY_FILE = ""
 REMOTE_TASK_FILE = ""
@@ -50,7 +66,8 @@ REMOTE_TASK_FILE = ""
 def sanitize_filename(filename: str) -> str:
     """Cleans filenames for Remotion project compatibility."""
     base_name = os.path.basename(filename)
-    return re.sub(r'[^a-zA-Z0-9.\-_]', '', base_name.replace(' ', '-'))
+    clean = re.sub(r'[^a-zA-Z0-9.\-_]', '', base_name.replace(' ', '-'))
+    return clean if clean else "asset"  # fallback if empty
 
 def refresh_env():
     """
@@ -58,21 +75,21 @@ def refresh_env():
     Ensures the remote task bridge is mapped correctly to the current project.
     """
     global TELEGRAM_TOKEN, AUTHORIZED_CHAT_ID, PROJECT_ROOT, SRC_DIR, \
-           PUBLIC_DIR, SKILLS_DIR, MEMORY_FILE, REMOTE_TASK_FILE
+           PUBLIC_DIR, OUT_DIR, SKILLS_DIR, MEMORY_FILE, REMOTE_TASK_FILE
     
     load_dotenv(override=True)
     
     TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
     AUTHORIZED_CHAT_ID = os.getenv("AUTHORIZED_CHAT_ID")
     
-    # Path Resolution from .env
-    PROJECT_ROOT = os.path.normpath(
-        os.getenv("REMOTION_PROJECT_PATH", 
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "my-video")))
-    )
+    # Path Resolution from .env – ensure absolute path
+    base_path = os.getenv("REMOTION_PROJECT_PATH",
+                os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "my-video")))
+    PROJECT_ROOT = os.path.abspath(os.path.normpath(base_path))
     
     SRC_DIR = os.path.join(PROJECT_ROOT, "src")
     PUBLIC_DIR = os.path.join(PROJECT_ROOT, "public")
+    OUT_DIR = os.path.join(PROJECT_ROOT, "out")                # <-- NEW
     SKILLS_DIR = os.path.join(PROJECT_ROOT, ".qwen", "skills", "remotion-best-practices")
     MEMORY_FILE = os.path.join(PROJECT_ROOT, "memory.md")
     REMOTE_TASK_FILE = os.path.join(SRC_DIR, "remote_task.md")
@@ -83,7 +100,7 @@ refresh_env()
 # =============================================================================
 # SHELL SECURITY & SENTINEL LION GUARD
 # =============================================================================
-ALLOWED_COMMANDS = ["npm", "npx", "node", "remotion"]
+ALLOWED_COMMANDS = {"npm", "npx", "node", "remotion"}  # changed to set for O(1) lookup
 COMMAND_TIMEOUT = 600 # 10 Minutes
 PREVIEW_SCAN_DURATION = 15 
 
@@ -103,10 +120,12 @@ def validate_path(relative_path: str) -> str:
     """Strict security jail to keep the AI within the PROJECT_ROOT."""
     try:
         absolute_path = os.path.abspath(os.path.join(PROJECT_ROOT, relative_path))
+        # Ensure the path is within PROJECT_ROOT (commonpath works for both files and dirs)
         if os.path.commonpath([absolute_path, PROJECT_ROOT]) == PROJECT_ROOT:
             return absolute_path
         raise PermissionError(f"Access Denied: {relative_path} is outside boundary.")
-    except Exception:
-        raise PermissionError("Path validation failed. Access Denied.")
+    except (OSError, ValueError) as e:
+        raise PermissionError(f"Path validation failed: {e}")
 
-PROJECT_EXISTS = os.path.exists(PROJECT_ROOT)
+# We no longer need PROJECT_EXISTS as a static variable; use a function if needed
+# def project_exists(): return os.path.isdir(PROJECT_ROOT)

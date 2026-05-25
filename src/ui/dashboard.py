@@ -51,7 +51,7 @@ class Dashboard:
         banner_text.append(f"\n      [{config.VERSION}] - {config.CODENAME}\n", style="italic magenta")
         banner_text.append("   " + "─" * 50, style="dim white")
         console.print(Align.center(banner_text))
-        console.print(Align.center(f"[bold white]Developed by [/][bold magenta]HIRUNA[/][bold white] | [dim white]Autonomous AI Video Engineer[/dim white]\n"))
+        console.print(Align.center(f"[bold white]Developed by [/][bold magenta]USER[/][bold white] | [dim white]Autonomous AI Video Engineer[/dim white]\n"))
 
     @staticmethod
     def select_mode() -> str:

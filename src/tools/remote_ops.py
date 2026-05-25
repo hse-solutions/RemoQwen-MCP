@@ -78,7 +78,7 @@ class RemoteCommander:
     @staticmethod
     async def _cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if str(update.effective_user.id) != str(config.AUTHORIZED_CHAT_ID): return
-        await update.message.reply_text(f"👋 Greetings HIRUNA!\nYour PC is linked. Use /help for remote features.")
+        await update.message.reply_text(f"👋 Greetings USER!\nYour PC is linked. Use /help for remote features.")
 
     @staticmethod
     async def _cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):

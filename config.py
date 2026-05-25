@@ -52,6 +52,14 @@ PERMISSION_TIMEOUT = int(os.getenv("PERMISSION_TIMEOUT", "60"))
 VERIFY_RENDERING_TIMEOUT = 45  # Must be less than MCP tool timeout
 
 # =============================================================================
+# BROWSER AUTOMATION (Remotion Studio Visual Inspection)
+# =============================================================================
+REMOTION_STUDIO_PORT = int(os.getenv("REMOTION_STUDIO_PORT", "3000"))
+HEADLESS_BROWSER = os.getenv("HEADLESS_BROWSER", "false").lower() == "true"
+# Optional: connect to an already running Chrome DevTools (for advanced setups)
+BROWSER_WS_ENDPOINT = os.getenv("BROWSER_WS_ENDPOINT", None)
+
+# =============================================================================
 # DYNAMIC PATHS - Managed by refresh_env()
 # =============================================================================
 PROJECT_ROOT = ""

@@ -16,3 +16,5 @@ questionary==2.1.1
 python-telegram-bot==22.7
 # NEW: High-speed Async HTTP client
 httpx==0.28.1
+# NEW: Browser automation (Playwright) for visual inspection of Remotion Studio
+playwright==1.52.0

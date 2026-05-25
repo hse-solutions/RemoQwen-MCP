@@ -4,7 +4,8 @@
 **No API Keys • No Subscriptions • No Cloud • 100% Local Forever**
 
 The Most Powerful Autonomous AI Video Engineer for Remotion  
-Connects **Qwen Desktop (Local AI)** + Telegram Remote Control + Infinite Persistent Loop + Sentinel Lion
+Connects **Qwen Desktop (Local AI)** + Telegram Remote Control + Infinite Persistent Loop + Sentinel Lion  
+**NEW: 🦁 Visual Self‑Healing via Browser Automation – AI sees your video, finds overlaps & sizing bugs, and fixes them autonomously.**
 
 ---
 
@@ -21,6 +22,7 @@ You can send tasks from your phone via Telegram, close the laptop, and the AI wi
 ## 🔥 Key Features
 
 - 🦁 **Sentinel Lion v3** – Concurrent multi‑point timeline crash detection (background, non‑blocking)  
+- 🌐 **Visual Self‑Healing (NEW)** – Opens Remotion Studio in a headed browser, inspects every keyframe for overlaps, misalignments, z‑index issues, text sizing, and other visual glitches; **automatically fixes them** in a closed loop.
 - ♾️ **Infinite Task Loop** – `wait_for_next_task()` + reactive polling – AI never exits without permission  
 - 📱 **Full Telegram Remote Control** – Send prompts from phone, no terminal needed  
 - 🖼️ **Asset Management** – Upload images, list, preview, delete, and organise in `public/` folder  
@@ -54,7 +56,13 @@ You can send tasks from your phone via Telegram, close the laptop, and the AI wi
    cp .env.example .env
    ```
 
-3. **Configure .env (Very Important)**
+3. **Install Browser Automation Dependencies (NEW)**
+   ```bash
+   playwright install chromium
+   ```
+   This downloads the Chromium browser used for visual inspection.
+
+4. **Configure .env (Very Important)**
    ```env
    # Required
    REMOTION_PROJECT_PATH=/full/absolute/path/to/your/my-video
@@ -67,9 +75,13 @@ You can send tasks from your phone via Telegram, close the laptop, and the AI wi
    LOG_LEVEL=INFO               # DEBUG, INFO, WARNING, ERROR
    PERMISSION_TIMEOUT=60        # seconds to wait for user approval
    DEEP_SCAN_POINTS=3           # number of verification frames (lower = faster)
+
+   # Browser Automation (Visual Self‑Healing)
+   REMOTION_STUDIO_PORT=3000    # port Remotion Studio runs on
+   HEADLESS_BROWSER=false       # false = visible window (recommended)
    ```
 
-4. **Launch**
+5. **Launch**
    ```bash
    python run.py
    ```
@@ -149,9 +161,43 @@ Once your bot is running, you can control everything from Telegram. Send `/help`
 
 ---
 
+## 🌐 Visual Self‑Healing (NEW – Browser Automation)
+
+The AI can now open a **headed Chromium browser** and inspect the Remotion Studio **visually**, catching problems that even Sentinel Lion cannot detect (overlaps, sizing, z‑index). It then **fixes the code automatically** and re‑inspects – a true closed‑loop quality assurance.
+
+### How It Works
+
+1. **AI renders the video** and passes Sentinel Lion runtime checks.
+2. **AI opens Remotion Studio** in the browser (`open_remotion_studio`).
+3. **AI jumps to key frames** (`navigate_to_frame`) – start, middle, end, and any animation change points.
+4. **AI extracts DOM layout** (`get_dom_layout`) – gets exact pixel positions and sizes of all elements, automatically detects overlaps.
+5. **AI checks console errors** (`get_console_errors`) – picks up z‑index warnings, missing refs, etc.
+6. **AI takes screenshots** (`capture_screenshot`) if it needs to confirm visual output.
+7. **If problems found** → AI calls `write_file` to fix the code → re‑renders → inspects again.
+8. **Loop continues** until the video is visually perfect.
+9. **AI closes the browser** (`close_browser`) and renders the final production‑ready MP4.
+
+### Tools Available to the AI
+
+| Tool | Purpose |
+|------|---------|
+| `open_remotion_studio` | Launch headed Chromium, navigate to `http://localhost:3000` |
+| `close_browser` | Close the browser and free resources |
+| `navigate_to_frame` | Jump timeline to a specific frame number |
+| `play_video` / `pause_video` | Control playback |
+| `capture_screenshot` | Save a PNG screenshot to `public/` |
+| `get_dom_layout` | Extract element positions, sizes, and **automatically detect overlaps** |
+| `get_console_errors` | Retrieve browser console warnings and errors |
+| `execute_js` | Run arbitrary JavaScript for advanced inspection |
+| `click_element` | Click UI elements by CSS selector |
+
+These tools give the AI full access to Playwright's browser automation capabilities – the AI decides which tool to use based on the problem it needs to solve.
+
+---
+
 ## 🧠 Background Verification (No Timeouts)
 
-The AI now uses two tools for timeline verification:
+The AI uses two tools for timeline verification:
 
 1. **`verify_rendering_start`** – Starts background verification, returns a **task_id** immediately.
 2. **`verify_rendering_status`** – Poll with the task_id to get the result.
@@ -176,6 +222,7 @@ RemoQwen-MCP/
 │   │   └── dashboard.py           ← Cinematic terminal UI
 │   └── tools/
 │       ├── asset_ops.py
+│       ├── browser_ops.py         ← NEW: Browser automation & visual self‑healing
 │       ├── file_ops.py
 │       ├── memory_ops.py
 │       ├── remote_ops.py          ← Telegram bot (all commands)
@@ -191,7 +238,7 @@ RemoQwen-MCP/
 ---
 
 ## 🎯 Master Prompt Example
-Initialize context. Create a premium 8-second liquid glass animation (1080p, cinematic). After writing the code, trigger Sentinel Lion verification.
+Initialize context. Create a premium 8-second liquid glass animation (1080p, cinematic). After writing the code, trigger Sentinel Lion verification, then open the studio, visually inspect frames 0, 100, 200, and fix any overlaps or sizing issues before final render.
 
 ---
 
@@ -205,6 +252,8 @@ You can set these in `.env` to fine‑tune the system:
 | `PERMISSION_TIMEOUT` | `60` | Seconds to wait for user approval before auto‑deny |
 | `DEEP_SCAN_POINTS` | `3` | Number of frames to check during verification (lower = faster) |
 | `COMMAND_TIMEOUT` | `600` | Seconds before killing a hanging shell command |
+| `REMOTION_STUDIO_PORT` | `3000` | Port for Remotion Studio (must match your setup) |
+| `HEADLESS_BROWSER` | `false` | Set to `true` to hide the browser window (headless mode) |
 
 ---
 

@@ -10,7 +10,8 @@ import src.tools.file_ops as file_ops
 import src.tools.memory_ops as memory_ops
 import src.tools.asset_ops as asset_ops
 import src.tools.shell_ops as shell_ops 
-import src.tools.remote_ops as remote_ops 
+import src.tools.remote_ops as remote_ops
+import src.tools.browser_ops as browser_ops   # Browser automation
 
 from src.ui.dashboard import db
 import config
@@ -193,7 +194,84 @@ async def handle_list_tools():
                     "composition_id": {"type": "string", "description": "Composition ID to render (default: VideoComposition)"}
                 }
             }
-        )
+        ),
+        # =====================================================================
+        # BROWSER LIFECYCLE TOOLS
+        # =====================================================================
+        Tool(
+            name="open_remotion_studio",
+            description=(
+                "🌐 BROWSER: Launch a visible Chrome browser and open the Remotion Studio.\n"
+                "In Strict or Balanced modes, requires user authorization.\n"
+                "Call this once at the beginning of visual inspection.\n"
+                "The browser opens in headed mode (visible window)."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "port": {"type": "integer", "description": "Remotion Studio port (default: 3000)", "default": 3000}
+                }
+            }
+        ),
+        Tool(
+            name="close_browser",
+            description=(
+                "🌐 BROWSER: Close the browser and free resources.\n"
+                "Call this when visual inspection is complete."
+            ),
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        # =====================================================================
+        # SINGLE BROWSER INSPECT TOOL – Full Playwright access
+        # =====================================================================
+        Tool(
+            name="browser_inspect",
+            description=(
+                "🌐 UNIVERSAL BROWSER TOOL: Execute any Playwright action on the Remotion Studio page.\n"
+                "You control the browser by specifying an `action` string and `parameters` object.\n\n"
+                "**Supported Actions (use exactly these strings):**\n\n"
+                "`navigate_frame` – Jump directly to a specific frame using the timeline input box.\n"
+                "  Parameters: {\"frame\": 400}  (the only required parameter)\n\n"
+                "`keyboard.press` – Press a key (e.g., 'Space' to play/pause, 'Enter').\n"
+                "  Parameters: {\"key\": \" \"}\n\n"
+                "`keyboard.type` – Type a string of text.\n"
+                "  Parameters: {\"text\": \"hello\"}\n\n"
+                "`screenshot` – Capture current viewport as a base64‑encoded PNG.\n"
+                "  Returns: '[SCREENSHOT_BASE64]: <base64_data>'\n"
+                "  Parameters: {} (no parameters needed)\n\n"
+                "`evaluate` – Execute JavaScript inside the page and return result.\n"
+                "  Use this to extract DOM layout, detect overlaps, read element sizes/positions.\n"
+                "  Parameters: {\"expression\": \"document.querySelector('#root').innerHTML\"}\n\n"
+                "`click` – Click an element on the page by CSS selector.\n"
+                "  Parameters: {\"selector\": \".my-button\"}\n\n"
+                "`goto` – Navigate to a URL (useful if page reloads).\n"
+                "  Parameters: {\"url\": \"http://localhost:3000\"}\n\n"
+                "`waitForSelector` – Wait until an element appears.\n"
+                "  Parameters: {\"selector\": \".loaded\"}\n\n"
+                "`waitForTimeout` – Wait a specified number of milliseconds.\n"
+                "  Parameters: {\"timeout\": 1000}\n\n"
+                "`reload` – Reload the current page.\n"
+                "  Parameters: {}\n\n"
+                "**Example: Jump to frame 400, take screenshot, get layout:**\n"
+                "  browser_inspect(action=\"navigate_frame\", parameters={\"frame\": 400})\n"
+                "  browser_inspect(action=\"screenshot\")  → base64 image\n"
+                "  browser_inspect(action=\"evaluate\", parameters={\"expression\": \"...\"})  → layout report\n"
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "description": "The Playwright action to perform. One of: navigate_frame, keyboard.press, keyboard.type, screenshot, evaluate, click, goto, waitForSelector, waitForTimeout, reload"
+                    },
+                    "parameters": {
+                        "type": "object",
+                        "description": "JSON object with parameters for the action. See description for required/optional keys."
+                    }
+                },
+                "required": ["action"]
+            }
+        ),
     ]
 
 @server.call_tool()
@@ -220,6 +298,10 @@ async def handle_call_tool(name: str, arguments: dict):
             return [TextContent(type="text", text="Error: missing 'lesson' argument")]
         if name == "verify_rendering_status" and "task_id" not in arguments:
             return [TextContent(type="text", text="Error: missing 'task_id' argument")]
+        if name == "browser_inspect":
+            if "action" not in arguments:
+                return [TextContent(type="text", text="Error: missing 'action' argument")]
+            parameters = arguments.get("parameters", {})
 
         if name == "initialize_task":
             db.log("CONTEXT", "Generating v8.0 autonomous brain context...")
@@ -273,7 +355,26 @@ async def handle_call_tool(name: str, arguments: dict):
                 "7. **CRITICAL**: Never block the dispatcher. Always return immediately from tool calls.\n"
                 "   - Your loop: `call wait_for_next_task` → process if mission → repeat.\n"
                 "   - DO NOT exit without user's explicit `STOP` command.\n\n"
-                "8. **GOOD LUCK**. You are the Eternal Watcher. Keep the mission going forever."
+                "8. **🌐 VISUAL QUALITY ASSURANCE (BROWSER INSPECTION)**:\n"
+                "   Before telling the user that a video is complete, you MUST perform a visual inspection\n"
+                "   using the browser to catch problems that Sentinel Lion cannot detect.\n\n"
+                "   **Lifecycle:**\n"
+                "   - Call `open_remotion_studio` once at the start of the inspection session.\n"
+                "   - Use `browser_inspect` for all page interactions (keyboard, screenshot, JavaScript).\n"
+                "   - Call `close_browser` when done.\n\n"
+                "   **How to jump to a specific frame (e.g., frame 400):**\n"
+                "     Use the dedicated navigate_frame action:\n"
+                "     browser_inspect(action=\"navigate_frame\", parameters={\"frame\": 400})\n\n"
+                "   **How to get a screenshot (base64):**\n"
+                "     browser_inspect(action=\"screenshot\")  → returns [SCREENSHOT_BASE64]: <data>\n\n"
+                "   **How to detect overlaps and layout issues:**\n"
+                "     Use browser_inspect(action=\"evaluate\") with a JavaScript expression that\n"
+                "     computes element positions/sizes and returns overlap information.\n\n"
+                "   **Self‑healing loop:**\n"
+                "   a) Inspect → Find problems → Call `write_file` to fix code → Re‑render → Inspect again.\n"
+                "   b) Repeat until layout is clean and no overlaps exist.\n"
+                "   c) Then close the browser and render the final production video.\n\n"
+                "9. **GOOD LUCK**. You are the Eternal Watcher. Keep the mission going forever."
             )
             return [TextContent(type="text", text=res)]
 
@@ -354,6 +455,20 @@ async def handle_call_tool(name: str, arguments: dict):
             else:
                 await remote_ops.RemoteCommander.send_notification(f"✅ Render complete! Video saved to out/ folder.")
                 res = f"Render complete. Video saved to out/ folder.\n\nOutput:\n{result}"
+
+        # =====================================================================
+        # BROWSER TOOL DISPATCHERS
+        # =====================================================================
+        elif name == "open_remotion_studio":
+            port = arguments.get("port", 3000)
+            res = await browser_ops.open_remotion_studio(port)
+        elif name == "close_browser":
+            res = await browser_ops.close_browser()
+        elif name == "browser_inspect":
+            action = arguments["action"]
+            parameters = arguments.get("parameters", {})
+            res = await browser_ops.execute_browser_action(action, parameters)
+
         else:
             res = f"Error: Tool '{name}' not found."
 

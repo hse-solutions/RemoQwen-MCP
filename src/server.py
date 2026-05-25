@@ -11,7 +11,7 @@ import src.tools.memory_ops as memory_ops
 import src.tools.asset_ops as asset_ops
 import src.tools.shell_ops as shell_ops 
 import src.tools.remote_ops as remote_ops
-import src.tools.browser_ops as browser_ops   # NEW: Browser automation
+import src.tools.browser_ops as browser_ops   # Browser automation
 
 from src.ui.dashboard import db
 import config
@@ -196,18 +196,15 @@ async def handle_list_tools():
             }
         ),
         # =====================================================================
-        # NEW: Browser Automation Tools (Remotion Studio Visual Inspection)
+        # BROWSER LIFECYCLE TOOLS
         # =====================================================================
         Tool(
             name="open_remotion_studio",
             description=(
-                "🌐 BROWSER TOOL: Launch a visible Chrome browser and open the Remotion Studio.\n"
-                "This allows you to visually inspect the video for overlapping elements,\n"
-                "text sizing problems, z‑index issues, and other visual glitches.\n"
-                "The browser opens in headed mode (visible window) so you can see exactly\n"
-                "what the user would see.\n"
+                "🌐 BROWSER: Launch a visible Chrome browser and open the Remotion Studio.\n"
                 "In Strict or Balanced modes, requires user authorization.\n"
-                "Call this BEFORE doing any visual inspection."
+                "Call this once at the beginning of visual inspection.\n"
+                "The browser opens in headed mode (visible window)."
             ),
             inputSchema={
                 "type": "object",
@@ -219,109 +216,60 @@ async def handle_list_tools():
         Tool(
             name="close_browser",
             description=(
-                "🌐 BROWSER TOOL: Close the browser and free resources.\n"
-                "Call this when you are done with visual inspection."
+                "🌐 BROWSER: Close the browser and free resources.\n"
+                "Call this when visual inspection is complete."
             ),
             inputSchema={"type": "object", "properties": {}}
         ),
+        # =====================================================================
+        # SINGLE BROWSER INSPECT TOOL – Full Playwright access
+        # =====================================================================
         Tool(
-            name="navigate_to_frame",
+            name="browser_inspect",
             description=(
-                "🌐 BROWSER TOOL: Jump the Remotion Studio timeline to a specific frame number.\n"
-                "Use this to inspect individual frames for visual problems.\n"
-                "The browser must already be open (use open_remotion_studio first)."
+                "🌐 UNIVERSAL BROWSER TOOL: Execute any Playwright action on the Remotion Studio page.\n"
+                "You control the browser by specifying an `action` string and `parameters` object.\n\n"
+                "**Supported Actions (use exactly these strings):**\n\n"
+                "`navigate_frame` – Jump directly to a specific frame using the timeline input box.\n"
+                "  Parameters: {\"frame\": 400}  (the only required parameter)\n\n"
+                "`keyboard.press` – Press a key (e.g., 'Space' to play/pause, 'Enter').\n"
+                "  Parameters: {\"key\": \" \"}\n\n"
+                "`keyboard.type` – Type a string of text.\n"
+                "  Parameters: {\"text\": \"hello\"}\n\n"
+                "`screenshot` – Capture current viewport as a base64‑encoded PNG.\n"
+                "  Returns: '[SCREENSHOT_BASE64]: <base64_data>'\n"
+                "  Parameters: {} (no parameters needed)\n\n"
+                "`evaluate` – Execute JavaScript inside the page and return result.\n"
+                "  Use this to extract DOM layout, detect overlaps, read element sizes/positions.\n"
+                "  Parameters: {\"expression\": \"document.querySelector('#root').innerHTML\"}\n\n"
+                "`click` – Click an element on the page by CSS selector.\n"
+                "  Parameters: {\"selector\": \".my-button\"}\n\n"
+                "`goto` – Navigate to a URL (useful if page reloads).\n"
+                "  Parameters: {\"url\": \"http://localhost:3000\"}\n\n"
+                "`waitForSelector` – Wait until an element appears.\n"
+                "  Parameters: {\"selector\": \".loaded\"}\n\n"
+                "`waitForTimeout` – Wait a specified number of milliseconds.\n"
+                "  Parameters: {\"timeout\": 1000}\n\n"
+                "`reload` – Reload the current page.\n"
+                "  Parameters: {}\n\n"
+                "**Example: Jump to frame 400, take screenshot, get layout:**\n"
+                "  browser_inspect(action=\"navigate_frame\", parameters={\"frame\": 400})\n"
+                "  browser_inspect(action=\"screenshot\")  → base64 image\n"
+                "  browser_inspect(action=\"evaluate\", parameters={\"expression\": \"...\"})  → layout report\n"
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "frame": {"type": "integer", "description": "Frame number to jump to"},
-                    "composition_id": {"type": "string", "description": "Composition ID (default: VideoComposition)", "default": "VideoComposition"}
+                    "action": {
+                        "type": "string",
+                        "description": "The Playwright action to perform. One of: navigate_frame, keyboard.press, keyboard.type, screenshot, evaluate, click, goto, waitForSelector, waitForTimeout, reload"
+                    },
+                    "parameters": {
+                        "type": "object",
+                        "description": "JSON object with parameters for the action. See description for required/optional keys."
+                    }
                 },
-                "required": ["frame"]
-            }
-        ),
-        Tool(
-            name="play_video",
-            description=(
-                "🌐 BROWSER TOOL: Press Space to start video playback in Remotion Studio.\n"
-                "The browser must already be open."
-            ),
-            inputSchema={"type": "object", "properties": {}}
-        ),
-        Tool(
-            name="pause_video",
-            description=(
-                "🌐 BROWSER TOOL: Press Space to pause video playback in Remotion Studio.\n"
-                "The browser must already be open."
-            ),
-            inputSchema={"type": "object", "properties": {}}
-        ),
-        Tool(
-            name="capture_screenshot",
-            description=(
-                "🌐 BROWSER TOOL: Take a screenshot of the current browser view and save it to public/.\n"
-                "The screenshot is saved as a PNG file. You can inspect this to see exactly\n"
-                "what the video looks like at the current frame.\n"
-                "The browser must already be open."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "filename": {"type": "string", "description": "Output filename (default: remotion_screenshot.png)", "default": "remotion_screenshot.png"}
-                }
-            }
-        ),
-        Tool(
-            name="get_dom_layout",
-            description=(
-                "🌐 BROWSER TOOL: Extract the layout of all visible elements in the video preview.\n"
-                "Returns a TEXT REPORT containing:\n"
-                " - Position and size of every visible element (x, y, width, height)\n"
-                " - z‑index, opacity, and overflow values\n"
-                " - AUTOMATIC OVERLAP DETECTION: finds elements that overlap each other\n"
-                "This is the PRIMARY tool for detecting visual problems like overlapping text,\n"
-                "misaligned elements, zero‑sized elements, and z‑index issues.\n"
-                "The browser must already be open."
-            ),
-            inputSchema={"type": "object", "properties": {}}
-        ),
-        Tool(
-            name="get_console_errors",
-            description=(
-                "🌐 BROWSER TOOL: Return all browser console messages (errors and warnings)\n"
-                "captured since the browser was opened.\n"
-                "Use this to find JavaScript errors that might indicate rendering problems."
-            ),
-            inputSchema={"type": "object", "properties": {}}
-        ),
-        Tool(
-            name="execute_js",
-            description=(
-                "🌐 BROWSER TOOL: Execute arbitrary JavaScript in the Remotion Studio page.\n"
-                "Use this for advanced DOM inspection, testing fixes, or extracting data.\n"
-                "The browser must already be open."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "script": {"type": "string", "description": "JavaScript code to execute in the browser"}
-                },
-                "required": ["script"]
-            }
-        ),
-        Tool(
-            name="click_element",
-            description=(
-                "🌐 BROWSER TOOL: Click a UI element in the Remotion Studio by its CSS selector.\n"
-                "Useful for interacting with buttons, panels, or controls.\n"
-                "The browser must already be open."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "selector": {"type": "string", "description": "CSS selector of the element to click"}
-                },
-                "required": ["selector"]
+                "required": ["action"]
             }
         ),
     ]
@@ -350,12 +298,10 @@ async def handle_call_tool(name: str, arguments: dict):
             return [TextContent(type="text", text="Error: missing 'lesson' argument")]
         if name == "verify_rendering_status" and "task_id" not in arguments:
             return [TextContent(type="text", text="Error: missing 'task_id' argument")]
-        if name == "navigate_to_frame" and "frame" not in arguments:
-            return [TextContent(type="text", text="Error: missing 'frame' argument")]
-        if name == "execute_js" and "script" not in arguments:
-            return [TextContent(type="text", text="Error: missing 'script' argument")]
-        if name == "click_element" and "selector" not in arguments:
-            return [TextContent(type="text", text="Error: missing 'selector' argument")]
+        if name == "browser_inspect":
+            if "action" not in arguments:
+                return [TextContent(type="text", text="Error: missing 'action' argument")]
+            parameters = arguments.get("parameters", {})
 
         if name == "initialize_task":
             db.log("CONTEXT", "Generating v8.0 autonomous brain context...")
@@ -409,35 +355,25 @@ async def handle_call_tool(name: str, arguments: dict):
                 "7. **CRITICAL**: Never block the dispatcher. Always return immediately from tool calls.\n"
                 "   - Your loop: `call wait_for_next_task` → process if mission → repeat.\n"
                 "   - DO NOT exit without user's explicit `STOP` command.\n\n"
-                # ===== NEW STEP 9: VISUAL QUALITY ASSURANCE (inserted before old step 8) =====
                 "8. **🌐 VISUAL QUALITY ASSURANCE (BROWSER INSPECTION)**:\n"
                 "   Before telling the user that a video is complete, you MUST perform a visual inspection\n"
-                "   using the browser tools to catch problems that Sentinel Lion cannot detect.\n\n"
-                "   **When to use browser inspection:**\n"
-                "   - After writing any new video code and passing Sentinel Lion verification.\n"
-                "   - Before calling `render_video` for the final output.\n"
-                "   - Whenever the user asks for a production‑ready video.\n\n"
-                "   **How to perform visual inspection:**\n"
-                "   a) Call `open_remotion_studio` to launch the browser (only once per session).\n"
-                "   b) Call `navigate_to_frame` to jump to key frames: start (frame 0), middle, end, and any\n"
-                "      frames where elements appear/disappear or animations change.\n"
-                "   c) For each key frame, call `get_dom_layout` to extract element positions, sizes, and\n"
-                "      automatically detect overlaps.\n"
-                "   d) Call `get_console_errors` to check for browser warnings (z‑index, overflow, etc.).\n"
-                "   e) If you need to see the actual visual output, call `capture_screenshot`.\n\n"
-                "   **Common visual problems to detect:**\n"
-                "   - Overlapping text/elements (detected by `get_dom_layout` overlap report)\n"
-                "   - Elements with zero width or height (invisible elements)\n"
-                "   - z‑index issues (elements hidden behind others)\n"
-                "   - Text overflow (text exceeding its container bounds)\n"
-                "   - Misaligned elements (unexpected positions)\n"
-                "   - Opacity:0 elements (invisible but present)\n\n"
+                "   using the browser to catch problems that Sentinel Lion cannot detect.\n\n"
+                "   **Lifecycle:**\n"
+                "   - Call `open_remotion_studio` once at the start of the inspection session.\n"
+                "   - Use `browser_inspect` for all page interactions (keyboard, screenshot, JavaScript).\n"
+                "   - Call `close_browser` when done.\n\n"
+                "   **How to jump to a specific frame (e.g., frame 400):**\n"
+                "     Use the dedicated navigate_frame action:\n"
+                "     browser_inspect(action=\"navigate_frame\", parameters={\"frame\": 400})\n\n"
+                "   **How to get a screenshot (base64):**\n"
+                "     browser_inspect(action=\"screenshot\")  → returns [SCREENSHOT_BASE64]: <data>\n\n"
+                "   **How to detect overlaps and layout issues:**\n"
+                "     Use browser_inspect(action=\"evaluate\") with a JavaScript expression that\n"
+                "     computes element positions/sizes and returns overlap information.\n\n"
                 "   **Self‑healing loop:**\n"
-                "   a) Inspect → Find problems → Call `write_file` to fix code → Re‑render → Inspect again\n"
-                "   b) Repeat until `get_dom_layout` shows NO overlaps and all elements have proper sizes.\n"
-                "   c) Only then call `close_browser` and proceed to final render.\n\n"
-                "   **After inspection is clean**, call `close_browser` to free resources.\n"
-                "   Then call `render_video` for the final production‑ready MP4.\n\n"
+                "   a) Inspect → Find problems → Call `write_file` to fix code → Re‑render → Inspect again.\n"
+                "   b) Repeat until layout is clean and no overlaps exist.\n"
+                "   c) Then close the browser and render the final production video.\n\n"
                 "9. **GOOD LUCK**. You are the Eternal Watcher. Keep the mission going forever."
             )
             return [TextContent(type="text", text=res)]
@@ -521,32 +457,17 @@ async def handle_call_tool(name: str, arguments: dict):
                 res = f"Render complete. Video saved to out/ folder.\n\nOutput:\n{result}"
 
         # =====================================================================
-        # NEW: Browser Tool Dispatchers
+        # BROWSER TOOL DISPATCHERS
         # =====================================================================
         elif name == "open_remotion_studio":
             port = arguments.get("port", 3000)
             res = await browser_ops.open_remotion_studio(port)
         elif name == "close_browser":
             res = await browser_ops.close_browser()
-        elif name == "navigate_to_frame":
-            frame = arguments["frame"]
-            comp_id = arguments.get("composition_id", "VideoComposition")
-            res = await browser_ops.navigate_to_frame(frame, comp_id)
-        elif name == "play_video":
-            res = await browser_ops.play_video()
-        elif name == "pause_video":
-            res = await browser_ops.pause_video()
-        elif name == "capture_screenshot":
-            filename = arguments.get("filename", "remotion_screenshot.png")
-            res = await browser_ops.capture_screenshot(filename)
-        elif name == "get_dom_layout":
-            res = await browser_ops.get_dom_layout()
-        elif name == "get_console_errors":
-            res = await browser_ops.get_console_errors()
-        elif name == "execute_js":
-            res = await browser_ops.execute_js(arguments["script"])
-        elif name == "click_element":
-            res = await browser_ops.click_element(arguments["selector"])
+        elif name == "browser_inspect":
+            action = arguments["action"]
+            parameters = arguments.get("parameters", {})
+            res = await browser_ops.execute_browser_action(action, parameters)
 
         else:
             res = f"Error: Tool '{name}' not found."

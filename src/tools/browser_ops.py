@@ -1,10 +1,12 @@
 """
 browser_ops.py – v8.0 Eternal Watcher Extension
-Full Playwright Browser Automation for Visual Inspection & Self‑Healing
+Single universal browser tool (execute_browser_action) for full Playwright control.
+Supports base64 screenshot encoding for AI visual feedback.
+Includes reliable frame navigation by directly targeting the timeline frame input.
 """
 
+import base64
 import asyncio
-import os
 from playwright.async_api import async_playwright, Page, Browser
 
 import config
@@ -41,13 +43,12 @@ def _clear_console() -> None:
 def _add_console(msg: str) -> None:
     global _console_messages
     _console_messages.append(msg)
-    # Keep only the last 200 messages to avoid memory bloat
     if len(_console_messages) > 200:
         _console_messages[:] = _console_messages[-200:]
 
 
 # ---------------------------------------------------------------------------
-# MCP Tool Implementations
+# Browser Lifecycle Tools
 # ---------------------------------------------------------------------------
 
 async def open_remotion_studio(port: int = 3000) -> str:
@@ -69,7 +70,7 @@ async def open_remotion_studio(port: int = 3000) -> str:
     db.log("SERVER", "Launching headed Chromium for Remotion Studio...")
     playwright = await async_playwright().start()
     _browser = await playwright.chromium.launch(
-        headless=False,  # Visible window – you can watch the AI work
+        headless=False,  # Visible window
     )
     context = await _browser.new_context(viewport={"width": 1280, "height": 720})
     _page = await context.new_page()
@@ -102,188 +103,139 @@ async def close_browser() -> str:
     return "Browser closed successfully."
 
 
-async def navigate_to_frame(frame: int, composition_id: str = "VideoComposition") -> str:
+# ---------------------------------------------------------------------------
+# Generic Browser Action Dispatcher
+# ---------------------------------------------------------------------------
+
+async def execute_browser_action(action: str, parameters: dict) -> str:
     """
-    Jump the Remotion Studio timeline to the exact frame number.
-    Uses the programmatic seek() API for reliability.
+    Execute a Playwright action on the Remotion Studio page.
+    The action string maps to a Playwright method call.
+    Returns a text response; for screenshots, includes base64 PNG data.
     """
     page = await _get_page()
-    db.log("BROWSER", f"Navigating to frame {frame} in '{composition_id}'")
+
+    db.log("BROWSER", f"Executing action: {action} with params: {parameters}")
+
     try:
-        await page.evaluate(
-            f"""
-            (() => {{
-                // Use Remotion Studio's internal seek API
-                try {{
-                    window.remotion_seekToFrame({frame});
-                    return 'seek called';
-                }} catch (e) {{
-                    // Fallback: dispatch keyboard shortcut G, type frame, press Enter
-                    const active = document.activeElement;
-                    if (active) active.blur();
-                    const event = new KeyboardEvent('keydown', {{ key: 'g', code: 'KeyG', keyCode: 71, which: 71, bubbles: true }});
-                    document.dispatchEvent(event);
-                    setTimeout(() => {{
-                        // Simulate typing the frame number
-                        document.execCommand('insertText', false, '{frame}');
-                        document.dispatchEvent(new KeyboardEvent('keydown', {{ key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }}));
-                    }}, 100);
-                    return 'fallback';
-                }}
-            }})()
-            """
-        )
-        # Wait for the UI to settle
-        await page.wait_for_timeout(500)
-        db.log("SUCCESS", f"Timeline now at frame {frame}")
-        return f"Navigated to frame {frame}."
+        # ---------------------------------------------------
+        # keyboard.press
+        # ---------------------------------------------------
+        if action == "keyboard.press":
+            key = parameters.get("key", "")
+            if not key:
+                return "Error: 'key' parameter is required for keyboard.press."
+            await page.keyboard.press(key)
+            return f"Key pressed: {key}"
+
+        # ---------------------------------------------------
+        # keyboard.type
+        # ---------------------------------------------------
+        elif action == "keyboard.type":
+            text = parameters.get("text", "")
+            if not text:
+                return "Error: 'text' parameter is required for keyboard.type."
+            await page.keyboard.type(text)
+            return f"Text typed: {text}"
+
+        # ---------------------------------------------------
+        # screenshot → base64
+        # ---------------------------------------------------
+        elif action == "screenshot":
+            # Capture full page as PNG buffer
+            png_bytes = await page.screenshot(full_page=False, type="png")
+            # Encode to base64 string
+            b64_data = base64.b64encode(png_bytes).decode("utf-8")
+            db.log("SUCCESS", "Screenshot captured and encoded to base64.")
+            return f"[SCREENSHOT_BASE64]: {b64_data}"
+
+        # ---------------------------------------------------
+        # navigate_frame – reliable frame jump using the timeline input box
+        # ---------------------------------------------------
+        elif action == "navigate_frame":
+            frame = parameters.get("frame", 0)
+            # Try to locate the frame input field directly.
+            # We'll use a robust approach: look for the input that shows the current frame.
+            try:
+                # Attempt to click the frame input (commonly an input with a specific aria-label)
+                frame_input = page.locator('input[aria-label="Current frame"]')
+                await frame_input.click()
+                await page.wait_for_timeout(100)
+                # Select all existing text and type the new frame number
+                await page.keyboard.press("Control+A")
+                await page.keyboard.type(str(frame))
+                await page.keyboard.press("Enter")
+                return f"Navigated to frame {frame} (via timeline input)."
+            except Exception:
+                # Fallback: use the keyboard shortcut G then type (may work on some versions)
+                await page.keyboard.press("g")
+                await page.wait_for_timeout(100)
+                await page.keyboard.type(str(frame))
+                await page.keyboard.press("Enter")
+                await page.wait_for_timeout(300)
+                return f"Attempted fallback navigation to frame {frame}."
+
+        # ---------------------------------------------------
+        # evaluate – run JavaScript and return result
+        # ---------------------------------------------------
+        elif action == "evaluate":
+            expression = parameters.get("expression", "")
+            if not expression:
+                return "Error: 'expression' parameter is required for evaluate."
+            result = await page.evaluate(expression)
+            return f"JS result: {result}"
+
+        # ---------------------------------------------------
+        # click
+        # ---------------------------------------------------
+        elif action == "click":
+            selector = parameters.get("selector", "")
+            if not selector:
+                return "Error: 'selector' parameter is required for click."
+            await page.click(selector, timeout=5000)
+            return f"Clicked element: {selector}"
+
+        # ---------------------------------------------------
+        # goto – navigate to URL
+        # ---------------------------------------------------
+        elif action == "goto":
+            url = parameters.get("url", "")
+            if not url:
+                return "Error: 'url' parameter is required for goto."
+            await page.goto(url, wait_until="networkidle")
+            return f"Navigated to: {url}"
+
+        # ---------------------------------------------------
+        # waitForSelector
+        # ---------------------------------------------------
+        elif action == "waitForSelector":
+            selector = parameters.get("selector", "")
+            if not selector:
+                return "Error: 'selector' parameter is required for waitForSelector."
+            await page.wait_for_selector(selector, timeout=10000)
+            return f"Element found: {selector}"
+
+        # ---------------------------------------------------
+        # waitForTimeout
+        # ---------------------------------------------------
+        elif action == "waitForTimeout":
+            timeout = parameters.get("timeout", 1000)
+            await page.wait_for_timeout(timeout)
+            return f"Waited {timeout}ms."
+
+        # ---------------------------------------------------
+        # reload
+        # ---------------------------------------------------
+        elif action == "reload":
+            await page.reload(wait_until="networkidle")
+            return "Page reloaded."
+
+        # ---------------------------------------------------
+        # Fallback: unknown action
+        # ---------------------------------------------------
+        else:
+            return f"Error: Unknown action '{action}'. Supported: keyboard.press, keyboard.type, screenshot, evaluate, click, goto, waitForSelector, waitForTimeout, reload, navigate_frame."
+
     except Exception as e:
-        db.log("ERROR", f"Frame navigation failed: {e}")
-        return f"Error navigating to frame {frame}: {str(e)}"
-
-
-async def play_video() -> str:
-    """Press the Space key to start playback."""
-    page = await _get_page()
-    await page.keyboard.press("Space")
-    db.log("BROWSER", "Playback started")
-    return "Playback started (Space pressed)."
-
-
-async def pause_video() -> str:
-    """Press the Space key to pause playback."""
-    page = await _get_page()
-    await page.keyboard.press("Space")
-    db.log("BROWSER", "Playback paused")
-    return "Playback paused (Space pressed)."
-
-
-async def capture_screenshot(filename: str = "remotion_screenshot.png") -> str:
-    """Take a full-page screenshot of the current browser view and save to public/."""
-    page = await _get_page()
-    rel_path = os.path.join("public", filename)
-    abs_path = config.validate_path(rel_path)
-    await page.screenshot(path=abs_path, full_page=False)
-    db.log("SUCCESS", f"Screenshot saved to {rel_path}")
-    return f"Screenshot saved to {rel_path}."
-
-
-async def get_dom_layout() -> str:
-    """
-    Extract layout information for key elements in the video preview.
-    Returns positions, sizes, and overlap warnings.
-    """
-    page = await _get_page()
-    db.log("BROWSER", "Extracting DOM layout...")
-    try:
-        layout_data = await page.evaluate(
-            """() => {
-                const elements = document.querySelectorAll(
-                    'div, span, p, h1, h2, h3, h4, h5, h6, img, video, canvas, svg'
-                );
-                const result = [];
-                const rects = [];
-                for (const el of elements) {
-                    const rect = el.getBoundingClientRect();
-                    if (rect.width === 0 || rect.height === 0) continue;
-                    const style = window.getComputedStyle(el);
-                    const tag = el.tagName.toLowerCase();
-                    const id = el.id ? '#' + el.id : '';
-                    const classes = el.className && typeof el.className === 'string' ? '.' + el.className.split(' ').join('.') : '';
-                    const selector = tag + id + classes;
-                    result.push({
-                        selector: selector,
-                        x: Math.round(rect.x),
-                        y: Math.round(rect.y),
-                        width: Math.round(rect.width),
-                        height: Math.round(rect.height),
-                        top: Math.round(rect.top),
-                        bottom: Math.round(rect.bottom),
-                        left: Math.round(rect.left),
-                        right: Math.round(rect.right),
-                        zIndex: style.zIndex,
-                        visibility: style.visibility,
-                        display: style.display,
-                        opacity: style.opacity,
-                        overflow: style.overflow,
-                    });
-                    rects.push({selector, ...rect});
-                }
-                // Detect overlaps
-                const overlaps = [];
-                for (let i = 0; i < rects.length; i++) {
-                    for (let j = i + 1; j < rects.length; j++) {
-                        const a = rects[i];
-                        const b = rects[j];
-                        const overlapX = Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left));
-                        const overlapY = Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
-                        if (overlapX > 0 && overlapY > 0) {
-                            overlaps.push({
-                                element1: a.selector,
-                                element2: b.selector,
-                                overlapX,
-                                overlapY,
-                            });
-                        }
-                    }
-                }
-                return { elements: result, overlaps };
-            }"""
-        )
-        report = []
-        report.append(f"Total visible elements: {len(layout_data['elements'])}")
-        report.append(f"Overlaps detected: {len(layout_data['overlaps'])}")
-        for ov in layout_data["overlaps"]:
-            report.append(
-                f"  ⚠️ {ov['element1']} ↔ {ov['element2']}  "
-                f"(overlap: {ov['overlapX']}px × {ov['overlapY']}px)"
-            )
-        if not layout_data["overlaps"]:
-            report.append("  ✅ No overlapping elements found.")
-        report.append("\nDetailed element positions (top-left, width×height):")
-        for el in layout_data["elements"][:30]:  # limit to avoid huge reports
-            report.append(
-                f"  {el['selector']}: ({el['x']},{el['y']}) {el['width']}×{el['height']} "
-                f"z-index: {el['zIndex']}, opacity: {el['opacity']}"
-            )
-        return "\n".join(report)
-    except Exception as e:
-        db.log("ERROR", f"DOM layout extraction failed: {e}")
-        return f"Error extracting DOM layout: {str(e)}"
-
-
-async def get_console_errors() -> str:
-    """
-    Return all captured browser console messages (errors and warnings).
-    """
-    global _console_messages
-    if not _console_messages:
-        return "No console messages captured yet."
-    return "\n".join(_console_messages[-50:])  # latest 50
-
-
-async def execute_js(script: str) -> str:
-    """
-    Execute arbitrary JavaScript in the Remotion Studio page.
-    Use this for advanced DOM manipulation, testing, or data extraction.
-    """
-    page = await _get_page()
-    db.log("BROWSER", f"Executing JS snippet...")
-    try:
-        result = await page.evaluate(script)
-        return f"JS executed successfully. Result: {result}"
-    except Exception as e:
-        db.log("ERROR", f"JS execution failed: {e}")
-        return f"Error executing JavaScript: {str(e)}"
-
-
-async def click_element(selector: str) -> str:
-    """Click a UI element in the Remotion Studio by its CSS selector."""
-    page = await _get_page()
-    db.log("BROWSER", f"Clicking element: {selector}")
-    try:
-        await page.click(selector, timeout=5000)
-        return f"Clicked element '{selector}'."
-    except Exception as e:
-        db.log("ERROR", f"Click failed: {e}")
-        return f"Error clicking '{selector}': {str(e)}"
+        db.log("ERROR", f"Browser action '{action}' failed: {str(e)}")
+        return f"Error executing '{action}': {str(e)}"

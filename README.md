@@ -152,7 +152,7 @@ Once your bot is running, you can control everything from Telegram. Send `/help`
 - **Add an asset** – Send an image **with a caption**. The caption will be used as the filename (e.g., `logo.png`). The image is saved inside your Remotion project's `public/` folder.
 - **List assets** – Type `/assets` → choose **PUBLIC FOLDER** (for images) or **OUT FOLDER** (for rendered videos).
 - **Preview asset** – `/show_public logo.png` sends the image directly to Telegram. For videos: `/show_out video.mp4`.
-- **Delete an asset** – Type `/delete filename` (e.g., `/delete logo.png`). You’ll get a confirmation button.
+- **Delete an asset** – Type `/delete filename` (e.g., `/delete logo.png`). You'll get a confirmation button.
 
 ### Managing messages & pending requests
 
@@ -265,6 +265,68 @@ You can set these in `.env` to fine‑tune the system:
 - **Process timeout** – Long‑running commands are automatically killed after 10 minutes.
 - **Telegram authorization** – Only the chat ID you set in `.env` can interact with the bot.
 - **SIGTERM handling** – Graceful shutdown on system signals.
+
+---
+
+## 🎁 Bonus Tip – AI Voiceover with Kokoro TTS (GPU Accelerated)
+
+Want to add **AI-generated voiceovers** to your Remotion motion graphics videos? Use **Kokoro TTS** — a lightweight, high-quality text-to-speech engine that runs 100% locally with GPU acceleration via ONNX Runtime. No API keys, no cloud, completely free.
+
+### 1. Install Kokoro TTS (Run This Manually in Your Remotion Project)
+
+```bash
+npm install kokoro-js onnxruntime-node
+```
+
+> **GPU Note:** This installs ONNX Runtime with CUDA support. Make sure you have an NVIDIA GPU with CUDA Toolkit and cuDNN installed. If GPU is unavailable, it automatically falls back to CPU.
+
+### 2. Create the Voice Generation Script
+
+Create a file named `generate-voice.js` in your Remotion project root:
+
+```javascript
+import { KokoroTTS } from 'kokoro-js';
+import { writeFileSync } from 'fs';
+
+// Initialize Kokoro TTS with GPU acceleration
+const tts = await KokoroTTS.fromPretrained(
+  'onnx-community/kokoro-v0.1-onnx',
+  {
+    dtype: 'fp32',    // Use 'fp16' for faster GPU inference (GPU only)
+    device: 'gpu',    // Change to 'cpu' if no GPU available
+  }
+);
+
+// Generate voiceover audio
+const audio = await tts.generate(
+  'Hello, this is Kokoro TTS speaking. Welcome to the motion graphics video.',
+  {
+    voice: 'af_heart',  // Built-in voice pack
+  }
+);
+
+// Save as WAV file to public folder (accessible in Remotion)
+writeFileSync('public/voiceover.wav', audio.toWav());
+console.log('✅ Voiceover saved to public/voiceover.wav');
+```
+
+### 3. Generate the Voice
+
+```bash
+node generate-voice.js
+```
+
+This will download the ONNX model on first run (~100–200 MB) and save the generated WAV file to `public/voiceover.wav`, which you can then import and use inside your Remotion compositions.
+
+### 4. Prompt to Give AI for Full Voiceover + Motion Graphic Workflow
+
+Copy and paste this prompt to Qwen Desktop (or send via Telegram) to have the AI generate a voiceover and build a matching motion graphic video automatically:
+
+```
+Generate a voiceover using Kokoro TTS: create a file called generate-voice.js that uses kokoro-js with GPU (device: 'gpu', dtype: 'fp32') and the voice 'af_heart'. The narration text should be: "Your narration script here". Save the output WAV to public/voiceover.wav. Then run 'node generate-voice.js' to generate it. After the voiceover is ready, create a Remotion composition that plays the voiceover audio from public/voiceover.wav and synchronizes motion graphics animations to match the narration timing. Use <Audio> component for playback and <Sequence> components to time visual elements with the audio. After writing the code, run Sentinel Lion verification, then visually inspect the studio and fix any issues before rendering the final video.
+```
+
+> **Pro Tip:** Change the narration text inside the prompt to match your video script. Use voices like `af_heart`, `af_bella`, or `am_adam` for different styles. Use `dtype: 'fp16'` on GPU for ~2x faster generation.
 
 ---
 

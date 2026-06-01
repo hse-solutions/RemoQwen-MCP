@@ -268,65 +268,147 @@ You can set these in `.env` to fine‑tune the system:
 
 ---
 
-## 🎁 Bonus Tip – AI Voiceover with Kokoro TTS (GPU Accelerated)
+## 🎁 Bonus Tip – AI Voiceover with Edge TTS Universal (Free, No GPU, No API Key)
 
-Want to add **AI-generated voiceovers** to your Remotion motion graphics videos? Use **Kokoro TTS** — a lightweight, high-quality text-to-speech engine that runs 100% locally with GPU acceleration via ONNX Runtime. No API keys, no cloud, completely free.
+Want to add **high-quality AI voiceovers** to your Remotion motion graphics videos? Use **edge-tts-universal** — a TypeScript library that uses Microsoft Edge's online TTS service with hundreds of natural Neural voices across 100+ languages. **No GPU required, no API key, no model downloads, completely free.**
 
-### 1. Install Kokoro TTS (Run This Manually in Your Remotion Project)
+> **Edge TTS Universal Repository:** https://github.com/travisvn/edge-tts-universal  
+> **Full Features Reference (give this link to AI):** https://github.com/travisvn/edge-tts-universal/blob/main/README.md
+
+---
+
+### The Fully Autonomous Voiceover + Motion Graphic Workflow
+
+Here is the exact procedure to make the AI automatically generate a voiceover and build a complete motion graphic video — all in one prompt:
+
+**Step 1 — Install the package manually** (run this once in your Remotion project folder):
 
 ```bash
-npm install kokoro-js onnxruntime-node
+npm install edge-tts-universal
 ```
 
-> **GPU Note:** This installs ONNX Runtime with CUDA support. Make sure you have an NVIDIA GPU with CUDA Toolkit and cuDNN installed. If GPU is unavailable, it automatically falls back to CPU.
+That's it. One package. No GPU drivers, no CUDA, no model downloads. It works immediately.
 
-### 2. Create the Voice Generation Script
+**Step 2 — Give the Edge TTS Universal README to the AI** so it understands how to use the library. Copy this link and paste it into your chat with Qwen Desktop:
 
-Create a file named `generate-voice.js` in your Remotion project root:
+```
+https://github.com/travisvn/edge-tts-universal/blob/main/README.md
+```
+
+The AI will read the full API reference — all voices, prosody options, streaming API, subtitle generation — and know exactly how to write the voiceover script.
+
+**Step 3 — Send your prompt** (via Qwen Desktop or Telegram). The AI will:
+1. Create `generate-voice.js` using edge-tts-universal
+2. Run `node generate-voice.js` to produce the voiceover MP3
+3. Build a Remotion composition with `<Audio>` synced to the narration
+4. Run Sentinel Lion verification + visual self-healing
+5. Render the final video — fully autonomously
+
+---
+
+### Example: generate-voice.js
+
+The AI will create a file like this in your Remotion project root:
 
 ```javascript
-import { KokoroTTS } from 'kokoro-js';
+import { EdgeTTS } from 'edge-tts-universal';
 import { writeFileSync } from 'fs';
 
-// Initialize Kokoro TTS with GPU acceleration
-const tts = await KokoroTTS.fromPretrained(
-  'onnx-community/kokoro-v0.1-onnx',
+// Initialize Edge TTS with a natural Neural voice
+const tts = new EdgeTTS(
+  'Welcome to Python. Python is one of the most popular programming languages in the world, known for its simplicity and power.',
+  'en-US-EmmaMultilingualNeural',
   {
-    dtype: 'fp32',    // Use 'fp16' for faster GPU inference (GPU only)
-    device: 'gpu',    // Change to 'cpu' if no GPU available
+    rate: '+0%',     // Adjust speaking speed: +20% faster, -10% slower
+    volume: '+0%',   // Adjust volume: +50% louder, -20% quieter
+    pitch: '+0Hz',   // Adjust pitch: +5Hz higher, -5Hz lower
   }
 );
 
-// Generate voiceover audio
-const audio = await tts.generate(
-  'Hello, this is Kokoro TTS speaking. Welcome to the motion graphics video.',
-  {
-    voice: 'af_heart',  // Built-in voice pack
-  }
-);
+// Generate the voiceover
+const result = await tts.synthesize();
 
-// Save as WAV file to public folder (accessible in Remotion)
-writeFileSync('public/voiceover.wav', audio.toWav());
-console.log('✅ Voiceover saved to public/voiceover.wav');
+// Save as MP3 to public folder (accessible in Remotion)
+const audioBuffer = Buffer.from(await result.audio.arrayBuffer());
+writeFileSync('public/voiceover.mp3', audioBuffer);
+console.log('✅ Voiceover saved to public/voiceover.mp3');
 ```
 
-### 3. Generate the Voice
+### Run It
 
 ```bash
 node generate-voice.js
 ```
 
-This will download the ONNX model on first run (~100–200 MB) and save the generated WAV file to `public/voiceover.wav`, which you can then import and use inside your Remotion compositions.
+The generated `public/voiceover.mp3` is now accessible inside your Remotion compositions via `<Audio src={staticFile('voiceover.mp3')} />`.
 
-### 4. Prompt to Give AI for Full Voiceover + Motion Graphic Workflow
+---
 
-Copy and paste this prompt to Qwen Desktop (or send via Telegram) to have the AI generate a voiceover and build a matching motion graphic video automatically:
+### Prompt to Give AI for Full Voiceover + Motion Graphic Video
+
+Copy and paste this prompt to Qwen Desktop (or send via Telegram):
 
 ```
-Generate a voiceover using Kokoro TTS: create a file called generate-voice.js that uses kokoro-js with GPU (device: 'gpu', dtype: 'fp32') and the voice 'af_heart'. The narration text should be: "Your narration script here". Save the output WAV to public/voiceover.wav. Then run 'node generate-voice.js' to generate it. After the voiceover is ready, create a Remotion composition that plays the voiceover audio from public/voiceover.wav and synchronizes motion graphics animations to match the narration timing. Use <Audio> component for playback and <Sequence> components to time visual elements with the audio. After writing the code, run Sentinel Lion verification, then visually inspect the studio and fix any issues before rendering the final video.
+First, read and understand the Edge TTS Universal features from this link: https://github.com/travisvn/edge-tts-universal/blob/main/README.md
+
+Then, generate a high-quality AI voiceover and create a motion graphics video:
+
+1. Create a file called generate-voice.js that uses edge-tts-universal (import { EdgeTTS } from 'edge-tts-universal') with the voice 'en-US-EmmaMultilingualNeural'. The narration text should be: "Your narration script here". Save the output MP3 to public/voiceover.mp3.
+
+2. Run 'node generate-voice.js' to generate the voiceover.
+
+3. After the voiceover is ready, create a Remotion composition that plays the voiceover audio from public/voiceover.mp3 using <Audio src={staticFile('voiceover.mp3')} /> and synchronizes motion graphics animations to match the narration timing. Use <Sequence> components to time visual elements with the audio.
+
+4. After writing the code, run Sentinel Lion verification, then visually inspect the studio and fix any issues before rendering the final video.
 ```
 
-> **Pro Tip:** Change the narration text inside the prompt to match your video script. Use voices like `af_heart`, `af_bella`, or `am_adam` for different styles. Use `dtype: 'fp16'` on GPU for ~2x faster generation.
+> **Change the narration text** inside the prompt to match your video script. The AI will handle everything from voiceover generation to final render — fully autonomous.
+
+---
+
+### Popular Voices
+
+| Voice | Language | Style |
+|-------|----------|-------|
+| `en-US-EmmaMultilingualNeural` | English (US) | Natural, versatile, multilingual |
+| `en-US-JennyNeural` | English (US) | Conversational, friendly |
+| `en-US-GuyNeural` | English (US) | Deep, professional male |
+| `en-GB-SoniaNeural` | English (UK) | British, clear female |
+| `en-AU-NatashaNeural` | English (AU) | Australian female |
+| `zh-CN-XiaoxiaoNeural` | Chinese | Default Chinese female |
+| `ja-JP-NanamiNeural` | Japanese | Natural Japanese female |
+| `es-ES-ElviraNeural` | Spanish | Spanish female |
+| `fr-FR-DeniseNeural` | French | French female |
+| `de-DE-KatjaNeural` | German | German female |
+
+To discover all available voices, the AI can use:
+
+```javascript
+import { VoicesManager } from 'edge-tts-universal';
+
+const voicesManager = await VoicesManager.create();
+const englishVoices = voicesManager.find({ Language: 'en' });
+const femaleUSVoices = voicesManager.find({ Gender: 'Female', Locale: 'en-US' });
+console.log(englishVoices.map(v => v.ShortName));
+```
+
+---
+
+### Why Edge TTS Universal Over Other TTS Options?
+
+| | Edge TTS Universal | Kokoro TTS | Paid APIs |
+|---|---|---|---|
+| **Cost** | Free | Free | Paid |
+| **API Key** | None | None | Required |
+| **GPU Required** | No | Yes (recommended) | No |
+| **Model Download** | None | ~100–200 MB | N/A |
+| **Install Size** | ~46 KB | Large (ONNX Runtime) | N/A |
+| **Voices** | Hundreds | ~10 | Varies |
+| **Languages** | 100+ | Limited | Varies |
+| **Audio Output** | MP3 (24kHz) | WAV | Varies |
+| **Subtitle Gen** | Built-in (VTT + SRT) | None | Varies |
+| **Prosody Control** | Rate, Volume, Pitch | Limited | Varies |
+| **Internet** | Required | Not required | Required |
 
 ---
 
